@@ -1,0 +1,142 @@
+*.nc
+*.pdb
+*.gro
+*.out
+*.top
+*.itp
+workdir
+.ipynb_checkpoints
+__pycache__
+*.xml
+.ipynb
+
+checkpoints
+tmp
+pocket_gen
+inference_out_dir_not_specified
+.plotly_cache
+.DS_store
+renew.sh
+tmux_renew.sh
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+.so3_*
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+
+
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+local_config_inference2.yml
+.vscode/
+
+
+*.zip
+Ala2TSF300.npy
+.idea/
+
+
+#################### Project specific
+.p.npy
+.score.npy
+# this ignores everything in data except for the file
+!/data
+!/data/aldp.sdf
+!/data/MCMC.pdb
+!/data/TG.pdb
+!/data/MC.pdb
+!/data/EY.pdb
+!/data/DF.pdb
+!/data/RT.pdb
+!/data/bpti.pdb
+!/data/1uao.pdb
+/data/*
+!/data/aldp.pdb
+!/data/splits
+!/data/protein_ligand_example_csv.csv
+!/data/testset_csv.csv
+!/data/INDEX_general_PL_data.2020
+!/data/not_git_ignored/
+!/data/not_git_ignored/*
+test_run
+
+Untitled.ipynb
+cache
+wandb
+logs
+
+# temporary files
+.openbabel_cache
+temp/
+stderr*
+stdout*
+results
+# this excludes everything in the runs directory except for that specific run
+!/runs
+/runs/*
