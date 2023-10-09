@@ -74,6 +74,7 @@ class GeneralModule(pl.LightningModule):
             if 'CUDA out of memory' in str(e):
                 print('| WARNING: ran OOM error, skipping batch. Exception:', str(e))
                 if not torch_dist.is_initialized():
+                    # NOTE: for skipping batches in a single-device setting
                     for p in self.model.parameters():
                         if p.grad is not None:
                             del p.grad  # free some memory
@@ -112,6 +113,7 @@ class GeneralModule(pl.LightningModule):
             if 'CUDA out of memory' in str(e):
                 print('| WARNING: ran OOM error, skipping batch. Exception:', str(e))
                 if not torch_dist.is_initialized():
+                    # NOTE: for skipping batches in a single-device setting
                     for p in self.model.parameters():
                         if p.grad is not None:
                             del p.grad  # free some memory
