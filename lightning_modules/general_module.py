@@ -95,8 +95,8 @@ class GeneralModule(pl.LightningModule):
             any_skipped = torch.sum(torch.stack(result)).bool().item()
             if any_skipped:
                 return None
-    def backward(self, loss: torch.Tensor, *args: Any, **kwargs: Any):
-        """Overrides Lightning's `backward` step to add an out-of-memory (OOM) check."""
+    def backward(self, loss: Tensor, *args: Any, **kwargs: Any) -> None:
+        r"""Overrides the PyTorch Lightning backward step and adds the OOM check."""
         # by default, do not skip the current batch
         skip_flag = torch.zeros(
             (), device=self.device, dtype=torch.bool
@@ -105,9 +105,9 @@ class GeneralModule(pl.LightningModule):
         try:
             loss.backward(*args, **kwargs)
         except RuntimeError as e:
-            if "out of memory" in str(e):
-                log.warning(f'Ran out of memory in the backward pass. Skipping batch due to: {e}')
-                for p in self.net.parameters():
+            if 'CUDA out of memory' in str(e):
+                print('| WARNING: ran OOM error, skipping batch. Exception:', str(e))
+                for p in self.model.parameters():
                     if p.grad is not None:
                         del p.grad  # free some memory
                 torch.cuda.empty_cache()
