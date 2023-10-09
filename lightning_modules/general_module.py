@@ -3,6 +3,7 @@ from typing import Any
 import torch
 from torch import optim, Tensor
 import lightning.pytorch as pl
+import torch.distributed as torch_dist
 from utils.logging import lg
 
 
@@ -62,6 +63,11 @@ class GeneralModule(pl.LightningModule):
             if had_nan_grads and self.args.except_on_nan_grads:
                 raise Exception('There were nan gradients and except_on_nan_grads was set to True')
     def general_step_oom_wrapper(self, batch, batch_idx):
+        # by default, do not skip the current batch
+        skip_flag = torch.zeros(
+            (), device=self.device, dtype=torch.bool
+        )  # NOTE: for skipping batches in a multi-device setting
+
         try:
             return self.general_step(batch, batch_idx)
         except RuntimeError as e:
@@ -71,20 +77,56 @@ class GeneralModule(pl.LightningModule):
                     if p.grad is not None:
                         del p.grad  # free some memory
                 torch.cuda.empty_cache()
-                return None
+                if not torch_dist.is_initialized():
+                    return None
+                skip_flag = torch.ones((), device=self.device, dtype=torch.bool)
             else:
                 raise e
-    def backward(self, loss: Tensor, *args: Any, **kwargs: Any) -> None:
-        r"""Overrides the PyTorch Lightning backward step and adds the OOM check."""
+
+        # NOTE: for skipping batches in a multi-device setting
+        # credit: https://github.com/Lightning-AI/lightning/issues/5243#issuecomment-1553404417
+        if torch_dist.is_initialized():
+            # if any rank skips a batch, then all other ranks need to skip
+            # their batches as well so DDP can properly keep all ranks synced
+            world_size = torch_dist.get_world_size()
+            torch_dist.barrier()
+            result = [torch.zeros_like(skip_flag) for _ in range(world_size)]
+            torch_dist.all_gather(result, skip_flag)
+            any_skipped = torch.sum(torch.stack(result)).bool().item()
+            if any_skipped:
+                return None
+    def backward(self, loss: torch.Tensor, *args: Any, **kwargs: Any):
+        """Overrides Lightning's `backward` step to add an out-of-memory (OOM) check."""
+        # by default, do not skip the current batch
+        skip_flag = torch.zeros(
+            (), device=self.device, dtype=torch.bool
+        )  # NOTE: for skipping batches in a multi-device setting
+
         try:
             loss.backward(*args, **kwargs)
         except RuntimeError as e:
-            if 'CUDA out of memory' in str(e):
-                print('| WARNING: ran OOM error, skipping batch. Exception:', str(e))
-                for p in self.model.parameters():
+            if "out of memory" in str(e):
+                log.warning(f'Ran out of memory in the backward pass. Skipping batch due to: {e}')
+                for p in self.net.parameters():
                     if p.grad is not None:
                         del p.grad  # free some memory
                 torch.cuda.empty_cache()
+                if not torch_dist.is_initialized():
+                    return None
+                skip_flag = torch.ones((), device=self.device, dtype=torch.bool)
             else:
                 raise e
+
+        # NOTE: for skipping batches in a multi-device setting
+        # credit: https://github.com/Lightning-AI/lightning/issues/5243#issuecomment-1553404417
+        if torch_dist.is_initialized():
+            # if any rank skips a batch, then all other ranks need to skip
+            # their batches as well so DDP can properly keep all ranks synced
+            world_size = torch_dist.get_world_size()
+            torch_dist.barrier()
+            result = [torch.zeros_like(skip_flag) for _ in range(world_size)]
+            torch_dist.all_gather(result, skip_flag)
+            any_skipped = torch.sum(torch.stack(result)).bool().item()
+            if any_skipped:
+                return None
 
