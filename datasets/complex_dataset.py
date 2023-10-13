@@ -331,10 +331,7 @@ class ComplexDataset(Dataset):
             if args.data_source == 'moad':
                 protein_name = f'{pdb_id}.pdb'
                 prody_struct = prody.parsePDB(os.path.join(args.data_dir, pdb_id, protein_name))
-                if not args.old_data:
-                    ligs_sel = prody_struct.select('not protein').select("not water").select('not hydrogen')
-                else:
-                    ligs_sel = prody_struct.select('not water and hetero').select('not hydrogen')
+                ligs_sel = prody_struct.select('not protein').select("not water").select('not hydrogen')
                 ligs_pos = []
                 res_names = []
                 res_ids = []
