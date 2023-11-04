@@ -8,7 +8,7 @@ from utils.logging import warn_with_traceback, Logger, lg
 import warnings
 import sys
 
-from lightning_modules.respos_module import FlowSiteModule
+from lightning_modules.flowsite_module import FlowSiteModule
 from models.flowsite_model import FlowSiteModel
 os.environ['KMP_DUPLICATE_LIB_OK']='True' # for running on a macbook
 import wandb
@@ -39,13 +39,16 @@ def main_function():
     else:
         wandb_logger = None
 
-    train_data = ComplexDataset(args, args.train_split_path, args.train_multiplicity)
+    train_data = ComplexDataset(args, args.train_split_path, data_source=args.data_source, data_dir=args.data_dir, multiplicity=args.train_multiplicity, device=device)
+    if args.train_split_path_combine is not None and args.data_source_combine is not None and args.data_dir_combine is not None:
+        train_data_combine = ComplexDataset(args, args.train_split_path_combine, data_source=args.data_source_combine, data_dir=args.data_dir_combine, multiplicity=args.train_multiplicity, device=device)
+        train_data = torch.utils.data.ConcatDataset([train_data, train_data_combine])
     train_data.fake_lig_ratio = args.fake_ratio_start
-    val_data = ComplexDataset(args, args.val_split_path)
+    val_data = ComplexDataset(args, args.val_split_path, data_source=args.data_source, data_dir=args.data_dir, device=device)
     train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
     if args.predict_split_path is not None:
-        predict_data = ComplexDataset(args, args.predict_split_path)
+        predict_data = ComplexDataset(args, args.predict_split_path, data_source=args.data_source, data_dir=args.data_dir, device=device)
         predict_loader = DataLoader(predict_data, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
     else:
         predict_loader = None

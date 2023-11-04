@@ -17,8 +17,22 @@ def parse_train_args(args=sys.argv[1:]):
     parser.add_argument("--limit_val_batches", type=int, default=None)
     parser.add_argument("--check_unused_params", action="store_true")
     parser.add_argument("--check_nan_grads", action="store_true")
-    parser.add_argument('--save_inference', action='store_true', default=False, help='Whether or not to save the generated complexes when running inference during validation.')
+    parser.add_argument('--save_inference', action='store_true', default=False, help='Whether or not to save the generated complex structures when running inference during validation.')
+    parser.add_argument("--save_all_batches", action="store_true", default=False, help='Whether or not to save all the generated complex structures or just the first batch when running prediction or validation.')
     parser.add_argument('--inference_save_freq', type=int, default=10, help='How often to save the generated complexes when running inference during validation.')
+
+    # Inference
+    parser.add_argument('--out_dir', type=str, default='data/inference_out', help='Path to output directory.')
+    parser.add_argument('--num_inference', type=int, default=1, help='How many sequences to generate for each complex.')
+    parser.add_argument('--csv_file', type=str, default=None, help='Path to a CSV file where you can specify the inputs below for multiple complexes.')
+    parser.add_argument('--ligand', type=str, default=None, help='Path to a ligand file. Either this or the smiles must be specified.')
+    parser.add_argument('--smiles', type=str, default=None, help='Ligand as smiles string. Either this or the ligand as path must be specified')
+    parser.add_argument('--protein', type=str, default=None, help='Path to a protein file')
+    parser.add_argument('--design_residues', type=str, default=None, help='String in the format like this where we first have the chain ID and then the residue number(s): "A60-65,A232,A233,B212-215,B325"')
+
+    parser.add_argument('--pocket_def_ligand', type=str, default=None, help='Path to a ligand file via which the pocket should be specified in the Distance pocket definition')
+    parser.add_argument('--pocket_def_residues', type=str, default=None, help='Residues that you think would be close to the bound ligand for specifying the pocket in a format like this: "A60-65,A232,A233,A212-215,A325"')
+    parser.add_argument('--pocket_def_center', type=str, default=None, help='String to define a pocket center like this: "-0.214,30.197,9.017"')
 
     # Training
     parser.add_argument('--batch_size', type=int, default=16, help='Batch size')
@@ -53,7 +67,6 @@ def parse_train_args(args=sys.argv[1:]):
     # General
     parser.add_argument('--checkpoint', type=str, default=None, help='A checkpoint to restart training from or to run inference from. ')
     parser.add_argument('--run_test', action='store_true', default=False, help='')
-    parser.add_argument('--num_inference', type=int, default=1, help='how often to run inference for each datapoint to get an estimate with less variance')
     parser.add_argument('--all_res_early_stop', action='store_true', default=False, help='use val_all_res_accuracy for early stopping instead of val_accuracy')
     parser.add_argument('--except_on_nan_grads', action='store_true', default=False, help='raise an exception if there are nan gradients')
     parser.add_argument('--ignore_lig', action='store_true', default=False, help='')
@@ -83,8 +96,6 @@ def parse_train_args(args=sys.argv[1:]):
     # Diffusion
     parser.add_argument('--residue_diffusion', action='store_true', default=False, help='')
     parser.add_argument('--correct_time_condition', action='store_true', default=False, help='')
-    parser.add_argument('--full_prot_diffusion_center', action='store_true', default=False, help='For blind docking. Setting the coordinate system center to be the center of the whole protein instead of the pocket center')
-    parser.add_argument('--diffusion_center_radius', type=int, default=None, help='Optional radius for selecting residues that will define the diffusion center. Should be None by default.')
     parser.add_argument('--highest_noise_only', action='store_true', default=False, help='only train with time equal to 1. Num diffusion steps then should be 1 as well')
     parser.add_argument('--non_designable_extra_token', action='store_true', default=False, help='In the discrete diffusion the features are either masked with uniform probabilities from which to sample a feature, or if this is TRue, then with an extra special token')
 
@@ -94,13 +105,14 @@ def parse_train_args(args=sys.argv[1:]):
     parser.add_argument('--val_split_path', type=str, default='index/test_indices', help='')
     parser.add_argument('--predict_split_path', type=str, default=None, help='')
     parser.add_argument('--data_source', type=str, default='pdbbind', help='[pdbbind, moad]')
+    parser.add_argument('--data_source_combine', type=str, default=None, help='[pdbbind, moad]')
+    parser.add_argument('--data_dir_combine', type=str, default=None, help='Folder containing original structures')
+    parser.add_argument('--train_split_path_combine', type=str, default=None, help='Path to the indices used for training')
     parser.add_argument('--backbone_noise', type=float, default=0, help='')
     parser.add_argument('--biounit1_only', action='store_true', default=False, help='Only use Biounit1 for Binding MOAD')
     parser.add_argument('--lig_connection_radius', type=float, default=4.0, help='treat ligands with heavy atoms this close together as a single ligand. So this ligand will consist of multiple small molecules.')
     parser.add_argument('--cache_path', type=str, default='data/cache', help='Folder from where to load/restore cached dataset')
     parser.add_argument('--protein_file_name', type=str, default='protein_processed', help='')
-    parser.add_argument('--design_residue_cutoff', type=float, default=4, help='for the residues that should be predicted/generated')
-    parser.add_argument('--pocket_residue_cutoff', type=float, default=None, help='for the residues that will be included as input to make the predictions')
     parser.add_argument('--protein_radius', type=float, default=15.0, help='')
     parser.add_argument('--ligand_edges', type=str, choices=['dense', 'radius'], default='radius')
     parser.add_argument('--lig_radius', type=float, default=15.0, help='')
@@ -118,10 +130,19 @@ def parse_train_args(args=sys.argv[1:]):
     parser.add_argument('--min_num_contacts', type=int, default=1,help='minimum number of contacts necessary for a residue to be considered as a fake ligand sidechain')
     parser.add_argument('--delte_unreadable_cache', action='store_true', default=False, help='')
     parser.add_argument('--correct_moad_lig_selection', action='store_true', default=False, help='')
+    parser.add_argument('--double_correct_moad_lig_selection', action='store_true', default=False, help='')
     parser.add_argument('--dont_cache_dataset', action='store_true', default=False, help='does not store data in memory when using a dataset and instead always loads it from the files')
     parser.add_argument('--await_preprocessing', action='store_true', default=False, help='wait until the preprocessing is done by another process')
-    parser.add_argument('--diffdock_pocket', action='store_true', default=False, help='option to switch to radius pocket instead of the default distance pocket')
     parser.add_argument('--use_largest_lig', action='store_true', default=False, help='Option For binding moad to always use the largest ligand out of all of the ligands in the complex')
+    parser.add_argument('--lm_embeddings', action='store_true', default=False, help='')
+
+    # Pocket parameters
+    parser.add_argument('--design_residue_cutoff', type=float, default=4, help='for the residues that should be predicted/generated')
+    parser.add_argument('--pocket_residue_cutoff', type=float, default=None, help='for the residues that will be included as input to make the predictions')
+    parser.add_argument('--pocket_type', type=str, choices=['distance', 'radius', 'diffdock', 'ca_distance', 'full_protein'], default='distance')
+    parser.add_argument('--radius_pocket_buffer', type=float, default=10, help='Buffer that is added to the ligand radius when choosing the distance for including residues in the pocket')
+    parser.add_argument('--pocket_residue_cutoff_sigma', type=float, default=0, help='Noise to add to minimum ligand distance for distance pockets')
+    parser.add_argument('--pocket_center_sigma', type=float, default=0, help='Noise to add to the pocket center')
 
     ## Equivariant TFN refinement layers
     parser.add_argument('--use_tfn', action='store_true', default=False)

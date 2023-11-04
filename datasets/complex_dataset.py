@@ -20,13 +20,23 @@ from tqdm import tqdm
 from utils.featurize import read_molecule, featurize_prody, init_lig_graph, atom_features_list, bond_features_list, \
     get_protein_subgraph
 from utils.logging import lg
+from utils.mmcif import RESTYPES
 from utils.residue_constants import amino_acid_atom_names
 
+
+class EmptyPocketException(Exception):
+    pass
+
+
 class ComplexDataset(Dataset):
-    def __init__(self, args, split_path, multiplicity = 1):
+    def __init__(self, args, split_path, data_source, data_dir, multiplicity = 1, device='cpu', inference=False):
         super(ComplexDataset, self).__init__()
         self.args = args
-        self.cache_file_name = f'idxFile{os.path.splitext(os.path.basename(split_path))[0]}--protFile{args.protein_file_name}--ligConRad{args.lig_connection_radius}{"--newData"}{"--Angles"}{"--correctLigSel" if args.correct_moad_lig_selection else ""}'
+        self.device = device
+        self.data_source = data_source
+        self.data_dir = data_dir
+        assert not (args.correct_moad_lig_selection and args.double_correct_moad_lig_selection)
+        self.cache_file_name = f'idxFile{os.path.splitext(os.path.basename(split_path))[0]}--protFile{args.protein_file_name}--ligConRad{args.lig_connection_radius}{"--newData"}{"--Angles"}{"--correctLigSel" if args.correct_moad_lig_selection and self.data_source == "moad" else ""}{"--actualCorectLigSel" if args.double_correct_moad_lig_selection and self.data_source == "moad" else ""}'
         self.full_cache_path = os.path.join(args.cache_path, self.cache_file_name)
         os.makedirs(self.full_cache_path, exist_ok=True)
         pdb_ids = np.loadtxt(split_path, dtype=str)
@@ -38,7 +48,7 @@ class ComplexDataset(Dataset):
             while not os.path.exists(valid_complex_paths_path):
                 lg(f'Waiting for {valid_complex_paths_path} to be created')
                 time.sleep(10)
-        if args.delte_unreadable_cache:
+        if args.delte_unreadable_cache and os.path.exists(valid_complex_paths_path):
             for path in tqdm(np.loadtxt(valid_complex_paths_path, dtype=str), desc="Checking for corrupted files"):
                 try:
                     data = torch.load(path)
@@ -79,13 +89,14 @@ class ComplexDataset(Dataset):
         assert len(valid_complex_paths) == len(lig_sizes)
         assert len(valid_complex_paths) > 0
         lg(f'Finished loading combined data of length: {len(valid_complex_paths)}')
-        if args.biounit1_only and args.data_source == 'moad':
+        if args.biounit1_only and self.data_source == 'moad':
             filter_mask = [idx for idx, (path, size) in enumerate(zip(valid_complex_paths, lig_sizes)) if 'unit1' in path]
             filtered_paths, filtered_sizes, filtered_contacts = valid_complex_paths[filter_mask], lig_sizes[filter_mask], num_contacts[filter_mask]
             lg(f'Finished filtering for biounit1 to remain with: {len(filtered_paths)}')
         else:
             filtered_paths, filtered_sizes, filtered_contacts = valid_complex_paths, lig_sizes, num_contacts
-
+        if args.lm_embeddings:
+            self.get_lm_embeddings(filtered_paths)
         valid_ids = []
         for idx in range(len(filtered_paths)):
             if np.any((filtered_contacts[idx] >= args.min_num_contacts) & (filtered_sizes[idx] <= args.max_lig_size) & (filtered_sizes[idx] >= args.min_lig_size)):
@@ -133,7 +144,6 @@ class ComplexDataset(Dataset):
             except Exception as e:
                 lg(f'ERROR: Failed to get fake_lig_id for {data.pdb_id} due to an error in get_fake_lig_id. Trying a new random complex instead now.')
                 lg(e)
-                traceback.logger.info_exc()
                 return self.get(torch.randint(low=0, high=self.len(), size=(1,)).item())
 
             try:
@@ -155,7 +165,6 @@ class ComplexDataset(Dataset):
             except Exception as e:
                 lg(f'ERROR: when initializing fake ligand for {data.pdb_id} with fake_lig_id {fake_lig_id} and pdb_chain_id {data["protein"].pdb_chain_id[fake_lig_id]} and pdb_res_id {data["protein"].pdb_res_id[fake_lig_id]}. Trying a new random complex instead now.')
                 lg(e)
-                traceback.logger.info_exc()
                 return self.get(torch.randint(low=0, high=self.len(), size=(1,)).item())
         else:
             # right now data['ligand'] is a list of multiple ligands that bind to the protein. We randomly choose one. When using PDBBind there is only one option. The option --use_largest_lig will always choose the largest ligand satisfying the num_contacts and ligand size requriements.
@@ -190,14 +199,13 @@ class ComplexDataset(Dataset):
         data['protein'].designable_mask = torch.zeros_like(data['protein'].min_lig_dist).bool()
         data['protein'].designable_mask[data['protein'].min_lig_dist < self.args.design_residue_cutoff] = True
 
+        try:
+            data = self.get_pocket(data)
+        except EmptyPocketException as e:
+            lg(f'WARNING: Empty pocket for {data.pdb_id}. Sampling a new complex.')
+            lg(e)
+            return self.get(torch.randint(low=0, high=self.len(), size=(1,)).item())
 
-        if self.args.diffdock_pocket:
-            data = self.get_diffdock_pocket(data)
-        self.center_data(data)
-
-
-        if self.args.pocket_residue_cutoff is not None:
-            data = get_protein_subgraph(data, data['protein'].min_lig_dist < self.args.pocket_residue_cutoff)
         if self.args.self_condition_inv:
             data['protein'].input_feat = torch.zeros_like(data['protein'].feat) + len(atom_features_list['residues_canonical']) # mask out all the residues
         if self.args.tfn_use_aa_identities:
@@ -225,17 +233,82 @@ class ComplexDataset(Dataset):
         data.protein_size = data['protein'].pos.shape[0]
         data['protein'].inter_res_dist = None
         data['ligand', 'bond_edge', 'ligand'].edge_attr = data['ligand', 'bond_edge', 'ligand'].edge_attr.resize(0, len(bond_features_list)) if data['ligand', 'bond_edge', 'ligand'].edge_attr.nelement() == 0 else data['ligand', 'bond_edge', 'ligand'].edge_attr # we do this because we have no edge attributes if we have onlye a single atom
-        assert not torch.isnan(data['protein'].pos).any()
+        if len(data['protein'].pos) <= 5:
+            print('WARNING: only this many residues in the pocket ', len(data['protein'].pos))
+        if torch.isnan(data['protein'].pos).any():
+            print('protein pos', data['protein'].pos)
+            raise Exception('Nan encounered in porotein positions of ', data.pdb_id)
         return data
+    def get_pocket(self, data, pocket_type = None):
+        if pocket_type is None:
+            pocket_type = self.args.pocket_type
+        if pocket_type == 'diffdock':
+            contact_res = data['protein'].min_lig_dist < 5
+            pocket_center = data['protein'].pos[contact_res].mean(dim=0)
+            dist = ((data['ligand'].pos - pocket_center) ** 2).sum(-1).sqrt()
+            radius = dist.max() + 10 if self.args.radius_pocket_buffer is None else self.args.radius_pocket_buffer
+            distances = ((data['protein'].pos - pocket_center) ** 2).sum(-1).sqrt()
+            if self.args.pocket_residue_cutoff_sigma > 0:
+                distances += torch.randn_like(distances) * self.args.pocket_residue_cutoff_sigma
+            pocket_mask = distances < radius
+            pocket_center_mask = contact_res[pocket_mask]
+            data = get_protein_subgraph(data, pocket_mask)
+        elif pocket_type == 'distance':
+            assert self.args.pocket_residue_cutoff is not None, 'distance pocket requires a pocket_resiudue_cutoff'
+            min_lig_distances = data['protein'].min_lig_dist
+            if self.args.pocket_residue_cutoff_sigma > 0:
+                min_lig_distances += torch.randn_like(min_lig_distances) * self.args.pocket_residue_cutoff_sigma
+            data = get_protein_subgraph(data, min_lig_distances < self.args.pocket_residue_cutoff)
+            pocket_center_mask = data['protein'].designable_mask
+        elif pocket_type == 'ca_distance':
+            assert self.args.pocket_residue_cutoff is not None, 'distance pocket requires a pocket_resiudue_cutoff'
+            ca_distances = torch.cdist(data['protein'].pos, data['ligand'].pos).min(dim=1)[0]
+            if self.args.pocket_residue_cutoff_sigma > 0:
+                ca_distances += torch.randn_like(ca_distances) * self.args.pocket_residue_cutoff_sigma
+            pocket_mask = ca_distances < self.args.pocket_residue_cutoff
+            assert pocket_mask.sum() > 0, f'No pocket residues found for {data.pdb_id} with pocket_residue_cutoff {self.args.pocket_residue_cutoff}'
+            data = get_protein_subgraph(data, pocket_mask)
+            pocket_center_mask = ca_distances[pocket_mask] < 8
+            if pocket_center_mask.sum() == 0:
+                print(f'warning : No residues found for {data.pdb_id} with a CA within   8A for constructing the pocket center')
+                pocket_center_mask = torch.zeros_like(ca_distances[pocket_mask]).bool()
+                pocket_center_mask[ca_distances[pocket_mask].argmin()] = True
+            assert pocket_center_mask.sum() > 0, f'No residues found for {data.pdb_id} with a CA within   8A for constructing the pocket center'
+        elif pocket_type == 'radius':
+            ca_distances = torch.cdist(data['protein'].pos, data['ligand'].pos).min(dim=1)[0]
+            contact_res = ca_distances < 8
+            pocket_center = data['protein'].pos[contact_res].mean(dim=0)
+            radius = max(5, 0.5 * (torch.cdist(data['ligand'].pos, data['ligand'].pos).max())) + self.args.radius_pocket_buffer
+            center_distances = ((data['protein'].pos - pocket_center) ** 2).sum(-1).sqrt()
+            if self.args.pocket_residue_cutoff_sigma > 0:
+                center_distances += torch.randn_like(center_distances) * self.args.pocket_residue_cutoff_sigma
+            pocket_mask = center_distances < radius
+            if pocket_mask.sum() == 0: raise EmptyPocketException(f'No pocket residues found for {data.pdb_id} with radius {radius} from radius_pocket_buffer {self.args.radius_pocket_buffer}')
+            assert pocket_mask.sum() > 0, f'No pocket residues found for {data.pdb_id} with radius {radius} from radius_pocket_buffer {self.args.radius_pocket_buffer}'
+            data = get_protein_subgraph(data, pocket_mask)
+            pocket_center_mask = ca_distances[pocket_mask] < 8
+            if pocket_center_mask.sum() == 0:
+                print(f'warning : No residues found for {data.pdb_id} with a CA within 8A for constructing the pocket center')
+                pocket_center_mask = torch.zeros_like(ca_distances[pocket_mask]).bool()
+                pocket_center_mask[ca_distances[pocket_mask].argmin()] = True
+        elif pocket_type == 'full_protein':
+            pocket_center_mask = torch.ones_like(data['protein'].min_lig_dist).bool()
+        else:
+            raise Exception("pocket_type needs to be defined")
 
-    def get_diffdock_pocket(self, data):
-        diffdock_contact_res = data['protein'].min_lig_dist < 5
-        pocket_center = data['protein'].pos[diffdock_contact_res].mean(dim=0)
-        dist = ((data['ligand'].pos - pocket_center) ** 2).sum(-1).sqrt()
-        radius = dist.max() + 10
-        pocket_mask =  ((data['protein'].pos - pocket_center) ** 2).sum(-1).sqrt() < radius
-        data.diffdock_contact_res = diffdock_contact_res[pocket_mask]
-        return get_protein_subgraph(data, pocket_mask)
+        # Center positions around new pocket center
+        pocket_center = torch.mean(data['protein'].pos[pocket_center_mask], dim=0, keepdim=True)
+        if self.args.pocket_center_sigma > 0:
+            pocket_center += torch.randn_like(pocket_center) * self.args.pocket_center_sigma
+        data.pocket_center = pocket_center
+        data['protein'].atom_pos -= data.pocket_center
+        data['protein'].pos -= data.pocket_center
+        data['protein'].pos_Cb -= data.pocket_center
+        data['protein'].pos_C -= data.pocket_center
+        data['protein'].pos_O -= data.pocket_center
+        data['protein'].pos_N -= data.pocket_center
+        data['ligand'].pos -= data.pocket_center
+        return data
 
     def get_fake_lig_id(self, data, idx):
         # remove residues that are close in the chain and less than 12A away
@@ -263,7 +336,7 @@ class ComplexDataset(Dataset):
     def init_fake_lig(self, data, fake_lig_id):
         # construct the ligand
         fake_lig_atom_names = data['protein'].atom_names[data['protein'].atom_res_idx == fake_lig_id]
-        data['ligand'].fake_lig_type = seq1(atom_features_list['residues'][data['protein'].feat[fake_lig_id][0]])
+        data['ligand'].fake_lig_type = seq1(atom_features_list['residues_canonical'][data['protein'].feat[fake_lig_id][0]])
         if data['protein'].feat[fake_lig_id][0].item() == len(atom_features_list['residues_canonical']) - 1:
             lg(f'Warning, {data.pdb_id} has non canonical amino acid at fake_lig_id {fake_lig_id} and pdb_res_id {data["protein"].pdb_res_id[fake_lig_id]} and pdb_chain_id {data["protein"].pdb_chain_id[fake_lig_id]}. Trying a new random complex instead now.')
             return False
@@ -298,47 +371,31 @@ class ComplexDataset(Dataset):
         '''
         pdb_id = data.pdb_id
         os.makedirs(f"data/{pdb_id}_sidechain_vis", exist_ok=True)
-        shutil.copy(os.path.join(self.args.data_dir, pdb_id, f'{pdb_id}_ligand.mol2'), os.path.join(f"data/{pdb_id}_sidechain_vis", f'{pdb_id}_ligand.mol2'))
-        shutil.copy(os.path.join(self.args.data_dir, pdb_id, f'{pdb_id}_{self.args.protein_file_name}.pdb'), os.path.join(f"data/{pdb_id}_sidechain_vis", f'{pdb_id}_{self.args.protein_file_name}.pdb'))
+        shutil.copy(os.path.join(self.data_dir, pdb_id, f'{pdb_id}_ligand.mol2'), os.path.join(f"data/{pdb_id}_sidechain_vis", f'{pdb_id}_ligand.mol2'))
+        shutil.copy(os.path.join(self.data_dir, pdb_id, f'{pdb_id}_{self.args.protein_file_name}.pdb'), os.path.join(f"data/{pdb_id}_sidechain_vis", f'{pdb_id}_{self.args.protein_file_name}.pdb'))
         file = PDBFile(lig)
         file.add(fake_lig_pos + data.original_center , order=0, part=0)
         file.write(path=f'data/{pdb_id}_sidechain_vis/debug_sidechain_lig{fake_lig_id}_{data["ligand"].fake_lig_type}.pdb')
         '''
         return True
 
-    def center_data(self, data):
-        if self.args.diffusion_center_radius is not None:
-            mask = torch.zeros_like(data['protein'].min_lig_dist).bool()
-            mask[data['protein'].min_lig_dist < self.args.diffusion_center_radius] = True
-        elif self.args.full_prot_diffusion_center:
-            mask = torch.ones_like(data['protein'].min_lig_dist).bool()
-        elif self.args.diffdock_pocket:
-            mask = data.diffdock_contact_res
-        else:
-            mask = data['protein'].designable_mask
-        data.diffusion_center = torch.mean(data['protein'].pos[mask], dim=0, keepdim=True)
-        data['protein'].atom_pos -= data.diffusion_center
-        data['protein'].pos -= data.diffusion_center
-        data['protein'].pos_Cb -= data.diffusion_center
-        data['protein'].pos_C -= data.diffusion_center
-        data['protein'].pos_O -= data.diffusion_center
-        data['protein'].pos_N -= data.diffusion_center
-        data['ligand'].pos -= data.diffusion_center
 
     def preprocess(self, pdb_id):
         try:
             args = self.args
-            if args.data_source == 'moad':
+            if self.data_source == 'moad':
                 protein_name = f'{pdb_id}.pdb'
-                prody_struct = prody.parsePDB(os.path.join(args.data_dir, pdb_id, protein_name))
+                prody_struct = prody.parsePDB(os.path.join(self.data_dir, pdb_id, protein_name))
                 ligs_sel = prody_struct.select('not protein').select("not water").select('not hydrogen')
                 ligs_pos = []
                 res_names = []
                 res_ids = []
                 chain_ids = []
+                atomidx = []
                 for res in ligs_sel.getHierView().iterResidues():
                     ligs_pos.append(res.getCoords())
                     res_names.append(res.getResname())
+                    atomidx.append(res.getIndices())
                     res_ids.append(res.getResnum())
                     chain_ids.append(res.getChid())
                 dist = np.zeros((len(ligs_pos), len(ligs_pos)))
@@ -354,14 +411,17 @@ class ComplexDataset(Dataset):
                 lig_num_components = []
                 lig_ccd_ids = []
                 for connected_idx in component_indices:
+                    connected_atomidx = np.concatenate(np.array(atomidx)[connected_idx])
                     connected_resnums = np.array(res_ids)[connected_idx]
                     connected_resnames = np.array(res_names)[connected_idx]
                     connected_chain_ids = np.array(chain_ids)[connected_idx]
                     connected_atoms = ligs_sel.select('resnum ' + ' '.join(connected_resnums.astype(str)))
                     if self.args.correct_moad_lig_selection:
                         connected_atoms = ligs_sel.select('resnum ' + ' '.join(connected_resnums.astype(str))).select('resname ' + ' '.join(connected_resnames)).select('chain ' + ' '.join(connected_chain_ids))
+                    if self.args.double_correct_moad_lig_selection:
+                        connected_atoms = ligs_sel.select('index ' + ' '.join(connected_atomidx.astype(str))).select('resnum ' + ' '.join(connected_resnums.astype(str))).select('resname ' + ' '.join(connected_resnames)).select('chain ' + ' '.join(connected_chain_ids))
                     lig_name = pdb_id +f'_lig{self.args.lig_connection_radius}'+ ''.join([f'-{res_name}_resID{res_id}_chID{chain_id}' for res_name, res_id, chain_id in zip(connected_resnames, connected_resnums, connected_chain_ids)]) + '.pdb'
-                    prody.writePDB(os.path.join(args.data_dir, pdb_id, lig_name), connected_atoms)
+                    prody.writePDB(os.path.join(self.data_dir, pdb_id, lig_name), connected_atoms)
                     lig_names.append(lig_name)
                     lig_num_components.append(len(connected_idx))
                     lig_ccd_ids.append(connected_resnames)
@@ -370,7 +430,7 @@ class ComplexDataset(Dataset):
                 lig_ccd_ids = ['XXX']
                 lig_names = [f'{pdb_id}_ligand.mol2']
                 protein_name = f'{pdb_id}_{args.protein_file_name}.pdb'
-                prody_struct = prody.parsePDB(os.path.join(args.data_dir, pdb_id, protein_name))
+                prody_struct = prody.parsePDB(os.path.join(self.data_dir, pdb_id, protein_name))
 
             data = HeteroData()
             data['ligand'] = []
@@ -379,7 +439,7 @@ class ComplexDataset(Dataset):
             success_count = 0
             for idx, lig_name in enumerate(lig_names):
                 try:
-                    lig = read_molecule(os.path.join(args.data_dir, pdb_id, lig_name))
+                    lig = read_molecule(os.path.join(self.data_dir, pdb_id, lig_name))
                     lig = RemoveHs(lig)
                     lig_data = HeteroData()
                     init_lig_graph(args, lig, lig_data)
@@ -397,7 +457,8 @@ class ComplexDataset(Dataset):
                         lg(str(e))
 
             featurize_prody(args, prody_struct, [lig_data['ligand'].pos.numpy() for lig_data in data['ligand']], data)
-
+            for lig_data in data['ligand']:
+                lig_data['ligand'].pos -= data.original_center
             lig_sizes = [lig_data['ligand'].size for lig_data in data['ligand']]
             lig_contacts = (data['protein'].min_lig_dist < 4).sum(dim=0)
             np.savez(os.path.join(self.full_cache_path, pdb_id + "lig_meta_data.npz"), lig_sizes, lig_contacts)
@@ -409,6 +470,52 @@ class ComplexDataset(Dataset):
             with open(f'data/preprocess_errors/{self.cache_file_name}', 'a') as f:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 f.write(f"{timestamp} Error in {pdb_id}: {e} \n")
+
+    def get_lm_embeddings(self, paths):
+        from esm.pretrained import load_model_and_alphabet
+        home_directory = os.getenv("HOME")
+        os.environ['HOME'] = 'data/esm_weights'
+        esm_lm, alphabet = load_model_and_alphabet("esm2_t36_3B_UR50D")
+        esm_lm = esm_lm.to(self.device)
+        os.environ['HOME'] = home_directory
+        batch_converter = alphabet.get_batch_converter()
+        chainwise_sequences = []
+        chain_to_prot_indices = []
+        pdb_ids = []
+        for i, path in enumerate(paths):
+            data = torch.load(path)
+            pdb_ids.append(data.pdb_id)
+            chain_id = data['protein'].pdb_chain_id
+            sequence = np.array(RESTYPES)[data['protein'].aatype_num]
+            chain_indices = []
+            for single_id in torch.unique(chain_id):
+                sequence[np.where(chain_id == single_id)]
+
+                chainwise_sequences.append(''.join(sequence.tolist()))
+                chain_indices.append(i)
+            chain_to_prot_indices.append(chain_indices)
+
+        chainwise_sequences = [(i, s) for i, s in enumerate(chainwise_sequences)]
+        batch_labels, batch_strs, batch_tokens = batch_converter(chainwise_sequences)
+        print('Running ESM language model')
+        out = esm_lm(batch_tokens.to(self.device), repr_layers=[esm_lm.num_layers], return_contacts=False)
+        print('Done running ESM language model')
+        sequences = []
+        for i, chain_to_prot_idx in enumerate(chain_to_prot_indices):
+            chainwise_embeddings = []
+            for chain_idx in chain_to_prot_idx:
+                chainwise_embeddings.append(out['representations'][esm_lm.num_layers][i + chain_idx][:len()])
+            sequences.append(out['representations'][esm_lm.num_layers][chain_to_prot_idx])
+        assert len(sequences) == len(paths)
+        embeddings = torch.cat([t[:len(sequences[i][1])] for i, t in enumerate(out['representations'][self.lm.num_layers])], dim=0)
+        os.makedirs(os.path.join(self.full_cache_path, 'lm_embeddings'), exist_ok=True)
+        for i, pdb_id in enumerate(pdb_ids):
+            torch.save(embeddings[i], os.path.join(self.full_cache_path, 'lm_embeddings',  pdb_id + ".pt"))
+        data['receptor'].x = torch.cat([data['receptor'].x, embeddings], dim=-1)
+        esm_lm.to('cpu')
+        del esm_lm
+        torch.cuda.empty_cache()
+
 
 
 

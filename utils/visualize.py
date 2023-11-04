@@ -64,30 +64,32 @@ class PDBFile:
         with open(path, "w") as f:
             f.write(str_)
 
-def save_trajectory_pdb(args, batch, trajectory, model_pred, extra_string = ''):
+def save_trajectory_pdb(args, batch, trajectory, model_pred, extra_string = '', production_mode= False, out_dir=None):
     bid = batch["ligand"].batch
+    if out_dir is None:
+        out_dir = f"{os.environ['MODEL_DIR']}/inference_output"
     pdb_files_xt = []
     pdb_files_x1 = []
     for i, pdb_id in enumerate(batch.pdb_id):
-        os.makedirs(f"{os.environ['MODEL_DIR']}/inference_output/{pdb_id}", exist_ok=True)
-        if not os.path.exists(os.path.join(f"{os.environ['MODEL_DIR']}/inference_output/{pdb_id}", batch['ligand'].name[i])):
-            shutil.copy(os.path.join(args.data_dir, pdb_id, batch['ligand'].name[i]), os.path.join(f"{os.environ['MODEL_DIR']}/inference_output/{pdb_id}", batch['ligand'].name[i]))
-        if not os.path.exists(os.path.join(f"{os.environ['MODEL_DIR']}/inference_output/{pdb_id}", batch['protein'].name[i])):
-            shutil.copy(os.path.join(args.data_dir, pdb_id, batch['protein'].name[i]), os.path.join(f"{os.environ['MODEL_DIR']}/inference_output/{pdb_id}", batch['protein'].name[i]))
-        rdkit_mol = RemoveHs(read_molecule(os.path.join(args.data_dir, pdb_id, batch['ligand'].name[i]), sanitize=True))
+        os.makedirs(f"{out_dir}/{pdb_id}", exist_ok=True)
+        if not os.path.exists(os.path.join(f"{out_dir}/{pdb_id}", batch['ligand'].name[i])) and not production_mode:
+            shutil.copy(os.path.join(args.data_dir, pdb_id, batch['ligand'].name[i]), os.path.join(f"{out_dir}/{pdb_id}", batch['ligand'].name[i]))
+        if not os.path.exists(os.path.join(f"{out_dir}/{pdb_id}", batch['protein'].name[i])) and not production_mode:
+            shutil.copy(os.path.join(args.data_dir, pdb_id, batch['protein'].name[i]), os.path.join(f"{out_dir}/{pdb_id}", batch['protein'].name[i]))
+        rdkit_mol = RemoveHs(batch['ligand'].mol[i] if production_mode else read_molecule(os.path.join(args.data_dir, pdb_id, batch['ligand'].name[i]), sanitize=True))
         pdb_files_xt.append(PDBFile(rdkit_mol))
         pdb_files_x1.append(PDBFile(rdkit_mol))
 
     for idx, (xt, model_pred) in enumerate(zip(trajectory, model_pred)):
         for i, (f_xt, f_preds) in enumerate(zip(pdb_files_xt, pdb_files_x1)):
-                center_offset = (batch.original_center[i].detach().cpu() + batch.diffusion_center[i].detach().cpu())
+                center_offset = (batch.original_center[i].detach().cpu() + batch.pocket_center[i].detach().cpu())
                 f_xt.add((xt[torch.where(bid == i)[0]]).detach().cpu() + center_offset, order=idx + 1, part=0)
                 f_preds.add((model_pred[torch.where(bid == i)[0]]).detach().cpu() + center_offset, order=idx + 1, part=0)
 
     for i, (f_xt, f_preds) in enumerate(zip(pdb_files_xt, pdb_files_x1)):
-            os.makedirs(f"{os.environ['MODEL_DIR']}/inference_output/{batch.pdb_id[i]}", exist_ok=True)
-            f_xt.write(path=f"{os.environ['MODEL_DIR']}/inference_output/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_xt.pdb")
-            f_preds.write(path=f"{os.environ['MODEL_DIR']}/inference_output/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_x1.pdb")
+            os.makedirs(f"{out_dir}/{batch.pdb_id[i]}", exist_ok=True)
+            f_xt.write(path=f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_xt.pdb")
+            f_preds.write(path=f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_x1.pdb")
 
 def plot_point_cloud(point_clouds):
     # Takes a list of point cloud tensors and plots them

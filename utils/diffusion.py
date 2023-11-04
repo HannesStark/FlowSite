@@ -102,9 +102,14 @@ def sample_prior(batch, sigma, harmonic=True):
 
         edges = batch['ligand', 'bond_edge', 'ligand'].edge_index
         edges = edges[:, edges[0] < edges[1]]  # de-duplicate
-
-        D, P = HarmonicSDE.diagonalize(batch['ligand'].num_nodes, edges=edges.T, lamb=sde.lamb[bid], ptr=batch['ligand'].ptr)
-
+        try:
+            D, P = HarmonicSDE.diagonalize(batch['ligand'].num_nodes, edges=edges.T, lamb=sde.lamb[bid], ptr=batch['ligand'].ptr)
+        except Exception as e:
+            print('batch["ligand"].num_nodes', batch['ligand'].num_nodes)
+            print("batch['ligand'].size", batch['ligand'].size)
+            print("batch['protein'].size", batch['protein'].batch.bincount())
+            print(batch.pdb_id)
+            raise e
         noise = torch.randn_like(batch["ligand"].pos)
         prior = P @ (noise / torch.sqrt(D)[:, None])
         return prior

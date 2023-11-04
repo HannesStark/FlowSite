@@ -53,6 +53,7 @@ atom_features_list = {
                           'PTR', 'GLV', 'CYT', 'SEP', 'HIZ', 'CYM', 'GLM', 'ASQ', 'TYS', 'CYX', 'GLZ', 'misc'],
     'residues_canonical': ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE',
                           'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL', 'misc'],
+    'residues_canonical_1letter': ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V'],
     'atom_types': ['C', 'C*', 'CA', 'CB', 'CD', 'CD1', 'CD2', 'CE', 'CE1', 'CE2', 'CE3', 'CG', 'CG1',
                             'CG2', 'CH', 'CH2', 'CZ', 'CZ2', 'CZ3', 'N', 'N*', 'ND', 'ND1', 'ND2', 'NE', 'NE1',
                             'NE2', 'NH', 'NH1', 'NH2', 'NZ', 'O', 'O*', 'OD', 'OD1', 'OD2', 'OE', 'OE1', 'OE2',
@@ -72,7 +73,7 @@ def parse_pdb_from_path(path):
         rec = structure[0]
     return rec
 
-def featurize_prody(args, prody_struct, lig_pos_list, data):
+def featurize_prody(args, prody_struct, lig_pos_list, data, inference=False):
     alpha_pos = []
     n_pos = []
     c_pos = []
@@ -198,8 +199,7 @@ def featurize_prody(args, prody_struct, lig_pos_list, data):
     data['protein'].pos_O = torch.from_numpy(o_pos).float() - protein_center
     data['protein'].pos_N = torch.from_numpy(n_pos).float() - protein_center
     data['protein'].pos -= protein_center
-    for lig_data in data['ligand']:
-        lig_data['ligand'].pos -= protein_center
+
     data.original_center = protein_center
     data['protein', 'radius_graph', 'protein'].edge_index = radius_graph(data['protein'].pos, r=args.protein_radius, max_num_neighbors=1000)
 
@@ -209,7 +209,8 @@ def featurize_prody(args, prody_struct, lig_pos_list, data):
     data['protein'].pos_Cb = -0.58273431 * a + 0.56802827 * b - 0.54067466 * c + data['protein'].pos
 
     # this might take quite some time
-    get_inter_res_distances(data)
+    if not inference:
+        get_inter_res_distances(data)
 
     num_residues = len(c_pos)
     if num_residues <= 1: raise ValueError(f"rec contains only 1 residue!")
@@ -268,7 +269,7 @@ def get_inter_res_distances(data):
     data['protein'].inter_res_dist = torch.stack(inter_res_dist)
 
 
-def     get_feature_dims():
+def get_feature_dims():
     node_feature_dims = [
         len(atom_features_list['atomic_num']),
         len(atom_features_list['chirality']),
