@@ -1,6 +1,6 @@
 # <span style="color:#016fff;">FlowSite</span> and <span style="color:#f99e01;">HarmonicFlow</span>
 
-### [Paper on arXiv](https://arxiv.org/abs/comingsoon)
+### [Paper on arXiv](https://arxiv.org/abs/2310.05764)
 
 Code of FlowSite and HarmonicFlow. HarmonicFlow generates binding structures for single ligands or "multi-ligands" (multiple small molecules and ions bound to the same pocket). 
 FlowSite builds on HarmonicFlow and generates residues types for binding sites to bind a specific (multi-)ligand.
