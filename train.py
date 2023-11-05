@@ -62,6 +62,7 @@ def main_function():
                         default_root_dir=os.environ['MODEL_DIR'],
                         num_sanity_val_steps=0,
                         log_every_n_steps=args.print_freq,
+                        strategy = 'ddp_find_unused_parameters_true',
                         max_epochs=args.epochs,
                         enable_checkpointing=True,
                         limit_test_batches=args.limit_test_batches or 1.0,
@@ -74,7 +75,6 @@ def main_function():
 
     numel = sum([p.numel() for p in model_module.model.parameters()])
     lg(f'Model with {numel} parameters')
-    if args.wandb: wandb.log({'numel': numel, 'trainer/global_step': 0})
 
     if not args.run_test:
         trainer.fit(model_module, train_loader, val_loader, ckpt_path=args.checkpoint)

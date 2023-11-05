@@ -21,7 +21,7 @@ from utils.featurize import read_molecule, featurize_prody, init_lig_graph, atom
     get_protein_subgraph
 from utils.logging import lg
 from utils.mmcif import RESTYPES
-from utils.residue_constants import amino_acid_atom_names
+from utils.residue_constants import amino_acid_atom_names, af2_latest_excluded_ligs
 
 
 class EmptyPocketException(Exception):
@@ -36,7 +36,7 @@ class ComplexDataset(Dataset):
         self.data_source = data_source
         self.data_dir = data_dir
         assert not (args.correct_moad_lig_selection and args.double_correct_moad_lig_selection)
-        self.cache_file_name = f'idxFile{os.path.splitext(os.path.basename(split_path))[0]}--protFile{args.protein_file_name}--ligConRad{args.lig_connection_radius}{"--newData"}{"--Angles"}{"--correctLigSel" if args.correct_moad_lig_selection and self.data_source == "moad" else ""}{"--actualCorectLigSel" if args.double_correct_moad_lig_selection and self.data_source == "moad" else ""}'
+        self.cache_file_name = f'idxFile{os.path.splitext(os.path.basename(split_path))[0]}--protFile{args.protein_file_name}--ligConRad{args.lig_connection_radius}{"--newData"}{"--Angles"}{"--correctLigSel" if args.correct_moad_lig_selection and self.data_source == "moad" else ""}{"--actualCorectLigSel" if args.double_correct_moad_lig_selection and self.data_source == "moad" else ""}{"--af2AAexcludedLigs" if args.exclude_af2aa_excluded_ligs and self.data_source == "moad" else ""}'
         self.full_cache_path = os.path.join(args.cache_path, self.cache_file_name)
         os.makedirs(self.full_cache_path, exist_ok=True)
         pdb_ids = np.loadtxt(split_path, dtype=str)
@@ -393,11 +393,13 @@ class ComplexDataset(Dataset):
                 chain_ids = []
                 atomidx = []
                 for res in ligs_sel.getHierView().iterResidues():
-                    ligs_pos.append(res.getCoords())
-                    res_names.append(res.getResname())
-                    atomidx.append(res.getIndices())
-                    res_ids.append(res.getResnum())
-                    chain_ids.append(res.getChid())
+                    resname = res.getResname()
+                    if resname not in af2_latest_excluded_ligs or not self.args.exclude_af2aa_excluded_ligs:
+                        ligs_pos.append(res.getCoords())
+                        res_names.append(resname)
+                        atomidx.append(res.getIndices())
+                        res_ids.append(res.getResnum())
+                        chain_ids.append(res.getChid())
                 dist = np.zeros((len(ligs_pos), len(ligs_pos)))
                 for i in range(len(ligs_pos)):
                     for j in range(len(ligs_pos)):

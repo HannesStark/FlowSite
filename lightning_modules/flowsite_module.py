@@ -487,8 +487,8 @@ class FlowSiteModule(GeneralModule):
         self.stage = "pred"
         logs = {}
         batch.logs = logs
-        prot_bid = batch['protein'].batch
-        full_prot_bid = batch['full_protein'].batch
+        prot_bid = batch['protein'].batch.cpu()
+        full_prot_bid = batch['full_protein'].batch.cpu()
         designed_seqs = []
         designed_res_list = []
         logit_seqs = []
@@ -506,20 +506,23 @@ class FlowSiteModule(GeneralModule):
             # get the full sequence with the designed residues inserted
             designed_seq = batch['full_protein'].aatype_num.clone()
             designed_res = torch.argmax(res_pred[batch['protein'].designable_mask], dim=1)
+            if (designed_res == len(RESTYPES)).any():
+                print('Warning: miscallenaeous token predicted, not including that in the redesigned sequence')
+            designed_res[designed_res == len(RESTYPES)] = batch['protein'].aatype_num[batch['protein'].designable_mask][designed_res == len(RESTYPES)] # do not redisign residues if miscallenaeous token is predicted
             designed_seq[full_designed_mask] = designed_res
             designed_seqs.append([np.array(RESTYPES)[designed_seq.cpu().numpy()][torch.where(full_prot_bid == i)] for i in range(len(batch.pdb_id))])
 
             # get the full sequence of logitidences/logits with the designed residues inserted
             logit_seq = np.zeros((len(batch['full_protein'].pos), len(atom_features_list['residues_canonical'])))
-            logit_seq[full_designed_mask] = res_pred[batch['protein'].designable_mask].cpu().numpy()
+            logit_seq[full_designed_mask.cpu()] = res_pred[batch['protein'].designable_mask].cpu().numpy()
             logit_seqs.append([logit_seq[torch.where(full_prot_bid == i)] for i in range(len(batch.pdb_id))])
 
             # get the individual designed residues / logitidences
-            designed_res_list.append([np.array(RESTYPES)[designed_res.cpu().numpy()][torch.where(prot_bid[batch['protein'].designable_mask] == i)] for i in range(len(batch.pdb_id))])
-            logit_res_list.append([res_pred[batch['protein'].designable_mask].cpu().numpy()[torch.where(prot_bid[batch['protein'].designable_mask] == i)] for i in range(len(batch.pdb_id))])
-            chain_id_letters = np.array(list('ACDEFGHIKLMNPQRSTVWY'))[batch['protein'].pdb_chain_id[batch['protein'].designable_mask].cpu().numpy()]
+            designed_res_list.append([np.array(RESTYPES)[designed_res.cpu().numpy()][torch.where(prot_bid[batch['protein'].designable_mask.cpu()] == i)] for i in range(len(batch.pdb_id))])
+            logit_res_list.append([res_pred[batch['protein'].designable_mask].cpu().numpy()[torch.where(prot_bid[batch['protein'].designable_mask.cpu()] == i)] for i in range(len(batch.pdb_id))])
+            chain_id_letters = np.array(list('ACDEFGHIKLMNPQRSTVWY'))[batch['protein'].pdb_chain_id[batch['protein'].designable_mask.cpu()].cpu().numpy()]
             res_id_chars = batch['protein'].pdb_res_id[batch['protein'].designable_mask].cpu().numpy().astype(str)
-            resid_chainid_list.append([np.char.add(chain_id_letters,res_id_chars)[torch.where(prot_bid[batch['protein'].designable_mask] == i)] for i in range(len(batch.pdb_id))])
+            resid_chainid_list.append([np.char.add(chain_id_letters,res_id_chars)[torch.where(prot_bid[batch['protein'].designable_mask.cpu()] == i)] for i in range(len(batch.pdb_id))])
 
         # transpose list of lists
         designed_seqs = list(map(list, zip(*designed_seqs)))

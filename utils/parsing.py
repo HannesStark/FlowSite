@@ -131,6 +131,7 @@ def parse_train_args(args=sys.argv[1:]):
     parser.add_argument('--delte_unreadable_cache', action='store_true', default=False, help='')
     parser.add_argument('--correct_moad_lig_selection', action='store_true', default=False, help='')
     parser.add_argument('--double_correct_moad_lig_selection', action='store_true', default=False, help='')
+    parser.add_argument('--exclude_af2aa_excluded_ligs', action='store_true', default=False, help='')
     parser.add_argument('--dont_cache_dataset', action='store_true', default=False, help='does not store data in memory when using a dataset and instead always loads it from the files')
     parser.add_argument('--await_preprocessing', action='store_true', default=False, help='wait until the preprocessing is done by another process')
     parser.add_argument('--use_largest_lig', action='store_true', default=False, help='Option For binding moad to always use the largest ligand out of all of the ligands in the complex')
