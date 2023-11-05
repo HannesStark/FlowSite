@@ -66,7 +66,6 @@ def main_function():
                       )
     numel = sum([p.numel() for p in model_module.model.parameters()])
     lg(f'Model with {numel} parameters')
-    if args.wandb: wandb.log({'numel': numel, 'trainer/global_step': 0})
 
     lg("Starting inference and saving predictions to: ", args.out_dir)
     trainer.predict(model=model_module, dataloaders=predict_loader, ckpt_path=args.checkpoint)

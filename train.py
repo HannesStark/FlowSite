@@ -62,7 +62,6 @@ def main_function():
                         default_root_dir=os.environ['MODEL_DIR'],
                         num_sanity_val_steps=0,
                         log_every_n_steps=args.print_freq,
-                        strategy = 'ddp_find_unused_parameters_true',
                         max_epochs=args.epochs,
                         enable_checkpointing=True,
                         limit_test_batches=args.limit_test_batches or 1.0,
