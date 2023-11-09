@@ -1,5 +1,5 @@
 *.nc
-*.pdb
+.pdb
 *.gro
 *.out
 *.top
@@ -10,6 +10,7 @@ __pycache__
 *.xml
 .ipynb
 
+scratch_homework*
 checkpoints
 tmp
 pocket_gen
@@ -114,7 +115,12 @@ Ala2TSF300.npy
 !/data/EY.pdb
 !/data/DF.pdb
 !/data/RT.pdb
+!/data/2fc2_HEM_HBI_HAR_NO.mol2
+!/data/2fc2_HEM_HBI_HAR_NO.pdb
+!/data/2fc2_unit1_protein.pdb
+!/data/2fc2_unit1_protein.cif
 !/data/bpti.pdb
+!/data/inference_csv_example.csv
 !/data/1uao.pdb
 /data/*
 !/data/aldp.pdb
