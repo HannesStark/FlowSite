@@ -472,6 +472,8 @@ class FlowSiteModule(GeneralModule):
                     aggregated_log[key + '_std'] = temporary_log[key].std(axis=0)
                 except:
                     pass
+        else:
+            aggregated_log = log
 
         for key, value in aggregated_log.items():
             if 'rmsd' in key and not '_std' in key:
