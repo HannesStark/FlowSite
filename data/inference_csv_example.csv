@@ -1,0 +1,4 @@
+ligand,smiles,protein,design_residues,pocket_def_ligand,pocket_def_residues,pocket_def_center
+"data/2fc2_HEM_HBI_HAR_NO.pdb",,"data/2fc2_unit1_protein.pdb","A60-65,A232,A233,A212-215,A325","data/2fc2_HEM_HBI_HAR_NO.pdb",,
+"data/2fc2_HEM_HBI_HAR_NO.mol2",,"data/2fc2_unit1_protein.pdb","A60-65,A232,A233,A212-215,A325",,"A60-65,A232,A233,A212-215,A325",
+"data/2fc2_HEM_HBI_HAR_NO.mol2",,"data/2fc2_unit1_protein.pdb","A60-65,A232,A233,A212-215,A325",,,"-0.214,30.197,9.017"

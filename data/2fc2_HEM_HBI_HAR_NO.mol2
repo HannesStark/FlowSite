@@ -1,0 +1,331 @@
+@<TRIPOS>MOLECULE
+
+75 77 5
+SMALL
+NO_CHARGES
+@<TRIPOS>ATOM
+1	C1     2.4110    35.2060     7.8620	C.3	1	fragment1
+2	C2    -2.9680    27.4920     4.9120	C.3	1	fragment1
+3	C3    -0.3080    25.8040    12.3570	C.3	1	fragment1
+4	C4     3.1670    32.9200    12.7720	C.3	1	fragment1
+5	N1     0.3150    31.9290     8.2190	N.1	1	fragment1
+6	C5     3.8320    34.6950     7.4870	C.3	1	fragment1
+7	C6    -3.5860    26.3160     5.3940	C.3	1	fragment1
+8	C7    -0.7080    24.5170    12.6340	C.3	1	fragment1
+9	C8     4.6070    32.5840    12.3350	C.3	1	fragment1
+10	N2    -0.9770    29.6110     7.2780	N.1	1	fragment1
+11	C9     4.8820    35.7940     7.3320	C.2	1	fragment1
+12	C10     5.6740    33.5440    12.8700	C.2	1	fragment1
+13	N3     0.6770    30.7250    10.7330	N.1	1	fragment1
+14	C11     1.7560    32.8350     9.9740	C.3	1	fragment1
+15	C12    -0.8260    31.7650     6.0560	C.3	1	fragment1
+16	C13    -1.4270    27.2820     7.8160	C.3	1	fragment1
+17	C14     0.2490    28.8070    12.1120	C.3	1	fragment1
+18	C15     0.3800    34.6410     5.5010	C.3	1	fragment1
+19	C16    -2.8560    30.1820     3.9450	C.3	1	fragment1
+20	C17    -1.1770    24.7020     9.3820	C.3	1	fragment1
+21	C18     1.9670    30.5390    14.3770	C.3	1	fragment1
+22	C19     1.1830    32.8680     8.7210	C.2	1	fragment1
+23	C20    -1.2780    30.4420     6.1990	C.2	1	fragment1
+24	C21    -0.9700    27.2470     9.1050	C.2	1	fragment1
+25	C22     0.7120    30.0760    11.9440	C.2	1	fragment1
+26	O1     6.0920    35.4590     7.3460	O.3	1	fragment1
+27	O2     6.7710    33.6060    12.2750	O.3	1	fragment1
+28	C23     1.3800    33.9950     7.7930	C.3	1	fragment1
+29	C24    -2.0800    29.6930     5.2180	C.2	1	fragment1
+30	C25    -0.8820    26.1150     9.9180	C.3	1	fragment1
+31	C26     1.5840    30.8210    12.8940	C.3	1	fragment1
+32	O3     4.5440    36.9890     7.1880	O.2	1	fragment1
+33	O4     5.4620    34.2210    13.8960	O.2	1	fragment1
+34	C27     0.5770    33.7240     6.7330	C.3	1	fragment1
+35	C28    -2.2130    28.4160     5.6630	C.2	1	fragment1
+36	C29    -0.5140    26.5380    11.1560	C.3	1	fragment1
+37	C30     2.0870    31.8950    12.2400	C.3	1	fragment1
+38	C31    -0.0490    32.4570     6.9840	C.2	1	fragment1
+39	C32    -1.5200    28.3640     6.9640	C.2	1	fragment1
+40	C33    -0.3360    27.9910    11.0790	C.2	1	fragment1
+41	C34     1.5060    31.8260    10.9010	C.2	1	fragment1
+42	N4    -0.6180    28.4170     9.7880	N.1	1	fragment1
+43	F1    -0.2140    30.1970     9.0170	F	2	fragment2
+44	N5     4.1700    41.2210     8.5160	N.3	3	fragment3
+45	C35     4.3670    39.9820     8.0760	C.2	3	fragment3
+46	N6     3.3160    39.2450     7.7450	N.3	3	fragment3
+47	N7     5.5960    39.4560     8.0220	N.2	3	fragment3
+48	C36     6.6600    40.1510     8.4210	C.2	3	fragment3
+49	C37     6.4750    41.3630     9.0750	C.2	3	fragment3
+50	O5     7.8220    39.7670     8.2510	O.2	3	fragment3
+51	N8     7.4830    42.0040     9.6500	N.2	3	fragment3
+52	C38     7.2010    43.0330    10.6240	C.3	3	fragment3
+53	C39     5.8230    43.5010    10.6720	C.2	3	fragment3
+54	C40     5.1660    41.8830     9.1080	C.2	3	fragment3
+55	N9     4.9290    43.0380     9.7230	N.1	3	fragment3
+56	C41     7.4790    43.8670    11.8880	C.3	3	fragment3
+57	O6     6.2430    44.3610    12.4270	O.3	3	fragment3
+58	C42     8.2640    43.0900    12.9760	C.3	3	fragment3
+59	O7     7.3800    42.7030    14.0350	O.3	3	fragment3
+60	C43     8.9540    41.8550    12.3820	C.3	3	fragment3
+61	N10     6.6550    33.8800     4.5920	N.3	4	fragment4
+62	C44     7.4080    32.6330     4.6740	C.3	4	fragment4
+63	C45     8.0220    32.3510     3.3090	C.2	4	fragment4
+64	O8     8.7090    31.3140     3.1660	O.3	4	fragment4
+65	C46     6.4470    31.5030     5.0180	C.3	4	fragment4
+66	C47     5.6300    31.4780     6.2800	C.3	4	fragment4
+67	C48     4.5160    30.4730     6.1560	C.3	4	fragment4
+68	N11     3.3630    30.3960     5.2630	N.3	4	fragment4
+69	C49     2.2340    29.8740     4.7960	C.2	4	fragment4
+70	N12     2.2370    28.9140     5.7130	N.3	4	fragment4
+71	N13     1.5290    30.3200     3.7660	N.2	4	fragment4
+72	O9     1.4300    28.0230     5.1470	O.3	4	fragment4
+73	O10     7.7760    33.1490     2.3830	O.2	4	fragment4
+74	N14     1.3370    29.6610     8.6190	N.2	5	fragment5
+75	O11     2.4650    29.6350     8.4830	O.2	5	fragment5
+@<TRIPOS>BOND
+1	1	6	1
+2	1	28	1
+3	2	7	1
+4	2	35	1
+5	3	8	1
+6	3	36	1
+7	4	9	1
+8	4	37	1
+9	5	22	2
+10	5	38	2
+11	6	11	1
+12	9	12	1
+13	10	23	2
+14	10	39	2
+15	11	26	1
+16	11	32	2
+17	12	27	1
+18	12	33	2
+19	13	25	2
+20	13	41	2
+21	14	22	1
+22	14	41	1
+23	15	23	1
+24	15	38	1
+25	16	24	1
+26	16	39	1
+27	17	25	1
+28	17	40	1
+29	18	34	1
+30	19	29	1
+31	20	30	1
+32	21	31	1
+33	22	28	1
+34	23	29	1
+35	24	30	1
+36	24	42	2
+37	25	31	1
+38	28	34	1
+39	29	35	2
+40	30	36	1
+41	31	37	1
+42	34	38	1
+43	35	39	1
+44	36	40	1
+45	37	41	1
+46	40	42	2
+47	44	45	1
+48	44	54	1
+49	45	46	1
+50	45	47	2
+51	47	48	1
+52	48	49	1
+53	48	50	2
+54	49	51	2
+55	49	54	1
+56	51	52	1
+57	52	53	1
+58	52	56	1
+59	53	55	2
+60	54	55	2
+61	56	57	1
+62	56	58	1
+63	58	59	1
+64	58	60	1
+65	61	62	1
+66	62	63	1
+67	62	65	1
+68	63	64	1
+69	63	73	2
+70	65	66	1
+71	66	67	1
+72	67	68	1
+73	68	69	1
+74	69	70	1
+75	69	71	2
+76	70	72	1
+77	74	75	2
+@<TRIPOS>SUBSTRUCTURE
+1	fragment1	1
+2	fragment2	43
+3	fragment3	44
+4	fragment4	61
+5	fragment5	74
+@<TRIPOS>MOLECULE
+
+75 0 75
+SMALL
+NO_CHARGES
+@<TRIPOS>ATOM
+1	C1     0.0000     0.0000     0.0000	C.3	1	fragment1
+2	C2     0.0000     0.0000     0.0000	C.3	2	fragment2
+3	C3     0.0000     0.0000     0.0000	C.3	3	fragment3
+4	C4     0.0000     0.0000     0.0000	C.3	4	fragment4
+5	N1     0.0000     0.0000     0.0000	N.3	5	fragment5
+6	C5     0.0000     0.0000     0.0000	C.3	6	fragment6
+7	C6     0.0000     0.0000     0.0000	C.3	7	fragment7
+8	C7     0.0000     0.0000     0.0000	C.3	8	fragment8
+9	C8     0.0000     0.0000     0.0000	C.3	9	fragment9
+10	N2     0.0000     0.0000     0.0000	N.3	10	fragment10
+11	C9     0.0000     0.0000     0.0000	C.3	11	fragment11
+12	C10     0.0000     0.0000     0.0000	C.3	12	fragment12
+13	N3     0.0000     0.0000     0.0000	N.3	13	fragment13
+14	C11     0.0000     0.0000     0.0000	C.3	14	fragment14
+15	C12     0.0000     0.0000     0.0000	C.3	15	fragment15
+16	C13     0.0000     0.0000     0.0000	C.3	16	fragment16
+17	C14     0.0000     0.0000     0.0000	C.3	17	fragment17
+18	C15     0.0000     0.0000     0.0000	C.3	18	fragment18
+19	C16     0.0000     0.0000     0.0000	C.3	19	fragment19
+20	C17     0.0000     0.0000     0.0000	C.3	20	fragment20
+21	C18     0.0000     0.0000     0.0000	C.3	21	fragment21
+22	C19     0.0000     0.0000     0.0000	C.3	22	fragment22
+23	C20     0.0000     0.0000     0.0000	C.3	23	fragment23
+24	C21     0.0000     0.0000     0.0000	C.3	24	fragment24
+25	C22     0.0000     0.0000     0.0000	C.3	25	fragment25
+26	O1     0.0000     0.0000     0.0000	O.3	26	fragment26
+27	O2     0.0000     0.0000     0.0000	O.3	27	fragment27
+28	C23     0.0000     0.0000     0.0000	C.3	28	fragment28
+29	C24     0.0000     0.0000     0.0000	C.3	29	fragment29
+30	C25     0.0000     0.0000     0.0000	C.3	30	fragment30
+31	C26     0.0000     0.0000     0.0000	C.3	31	fragment31
+32	O3     0.0000     0.0000     0.0000	O.3	32	fragment32
+33	O4     0.0000     0.0000     0.0000	O.3	33	fragment33
+34	C27     0.0000     0.0000     0.0000	C.3	34	fragment34
+35	C28     0.0000     0.0000     0.0000	C.3	35	fragment35
+36	C29     0.0000     0.0000     0.0000	C.3	36	fragment36
+37	C30     0.0000     0.0000     0.0000	C.3	37	fragment37
+38	C31     0.0000     0.0000     0.0000	C.3	38	fragment38
+39	C32     0.0000     0.0000     0.0000	C.3	39	fragment39
+40	C33     0.0000     0.0000     0.0000	C.3	40	fragment40
+41	C34     0.0000     0.0000     0.0000	C.3	41	fragment41
+42	N4     0.0000     0.0000     0.0000	N.3	42	fragment42
+43	F1     0.0000     0.0000     0.0000	F	43	fragment43
+44	N5     0.0000     0.0000     0.0000	N.3	44	fragment44
+45	C35     0.0000     0.0000     0.0000	C.3	45	fragment45
+46	N6     0.0000     0.0000     0.0000	N.3	46	fragment46
+47	N7     0.0000     0.0000     0.0000	N.3	47	fragment47
+48	C36     0.0000     0.0000     0.0000	C.3	48	fragment48
+49	C37     0.0000     0.0000     0.0000	C.3	49	fragment49
+50	O5     0.0000     0.0000     0.0000	O.3	50	fragment50
+51	N8     0.0000     0.0000     0.0000	N.3	51	fragment51
+52	C38     0.0000     0.0000     0.0000	C.3	52	fragment52
+53	C39     0.0000     0.0000     0.0000	C.3	53	fragment53
+54	C40     0.0000     0.0000     0.0000	C.3	54	fragment54
+55	N9     0.0000     0.0000     0.0000	N.3	55	fragment55
+56	C41     0.0000     0.0000     0.0000	C.3	56	fragment56
+57	O6     0.0000     0.0000     0.0000	O.3	57	fragment57
+58	C42     0.0000     0.0000     0.0000	C.3	58	fragment58
+59	O7     0.0000     0.0000     0.0000	O.3	59	fragment59
+60	C43     0.0000     0.0000     0.0000	C.3	60	fragment60
+61	N10     0.0000     0.0000     0.0000	N.3	61	fragment61
+62	C44     0.0000     0.0000     0.0000	C.3	62	fragment62
+63	C45     0.0000     0.0000     0.0000	C.3	63	fragment63
+64	O8     0.0000     0.0000     0.0000	O.3	64	fragment64
+65	C46     0.0000     0.0000     0.0000	C.3	65	fragment65
+66	C47     0.0000     0.0000     0.0000	C.3	66	fragment66
+67	C48     0.0000     0.0000     0.0000	C.3	67	fragment67
+68	N11     0.0000     0.0000     0.0000	N.3	68	fragment68
+69	C49     0.0000     0.0000     0.0000	C.3	69	fragment69
+70	N12     0.0000     0.0000     0.0000	N.3	70	fragment70
+71	N13     0.0000     0.0000     0.0000	N.3	71	fragment71
+72	O9     0.0000     0.0000     0.0000	O.3	72	fragment72
+73	O10     0.0000     0.0000     0.0000	O.3	73	fragment73
+74	N14     0.0000     0.0000     0.0000	N.3	74	fragment74
+75	O11     0.0000     0.0000     0.0000	O.3	75	fragment75
+@<TRIPOS>BOND
+@<TRIPOS>SUBSTRUCTURE
+1	fragment1	1
+2	fragment2	2
+3	fragment3	3
+4	fragment4	4
+5	fragment5	5
+6	fragment6	6
+7	fragment7	7
+8	fragment8	8
+9	fragment9	9
+10	fragment10	10
+11	fragment11	11
+12	fragment12	12
+13	fragment13	13
+14	fragment14	14
+15	fragment15	15
+16	fragment16	16
+17	fragment17	17
+18	fragment18	18
+19	fragment19	19
+20	fragment20	20
+21	fragment21	21
+22	fragment22	22
+23	fragment23	23
+24	fragment24	24
+25	fragment25	25
+26	fragment26	26
+27	fragment27	27
+28	fragment28	28
+29	fragment29	29
+30	fragment30	30
+31	fragment31	31
+32	fragment32	32
+33	fragment33	33
+34	fragment34	34
+35	fragment35	35
+36	fragment36	36
+37	fragment37	37
+38	fragment38	38
+39	fragment39	39
+40	fragment40	40
+41	fragment41	41
+42	fragment42	42
+43	fragment43	43
+44	fragment44	44
+45	fragment45	45
+46	fragment46	46
+47	fragment47	47
+48	fragment48	48
+49	fragment49	49
+50	fragment50	50
+51	fragment51	51
+52	fragment52	52
+53	fragment53	53
+54	fragment54	54
+55	fragment55	55
+56	fragment56	56
+57	fragment57	57
+58	fragment58	58
+59	fragment59	59
+60	fragment60	60
+61	fragment61	61
+62	fragment62	62
+63	fragment63	63
+64	fragment64	64
+65	fragment65	65
+66	fragment66	66
+67	fragment67	67
+68	fragment68	68
+69	fragment69	69
+70	fragment70	70
+71	fragment71	71
+72	fragment72	72
+73	fragment73	73
+74	fragment74	74
+75	fragment75	75
+@<TRIPOS>MOLECULE
+
+0 0 0
+SMALL
+NO_CHARGES
+@<TRIPOS>ATOM
+@<TRIPOS>BOND
+@<TRIPOS>SUBSTRUCTURE
