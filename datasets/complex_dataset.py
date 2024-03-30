@@ -1,5 +1,6 @@
 import os
 import copy
+import pickle
 import time
 import traceback
 from datetime import datetime
@@ -22,6 +23,7 @@ from utils.featurize import read_molecule, featurize_prody, init_lig_graph, atom
 from utils.logging import lg
 from utils.mmcif import RESTYPES
 from utils.residue_constants import amino_acid_atom_names, af2_latest_excluded_ligs
+from utils.visualize import plot_point_cloud
 
 
 class EmptyPocketException(Exception):
@@ -83,6 +85,8 @@ class ComplexDataset(Dataset):
             np.savetxt(os.path.join(valid_complex_paths_path), valid_paths, fmt="%s")
 
         lg('Loading valid complex path names')
+        if self.args.diffdockpocket_ligpos:
+            self.diffdock_ligpos = pickle.load(open(os.path.join('data', 'diffdock_ligand_baseline_pos.pkl'), 'rb'))
         valid_complex_paths = np.loadtxt(valid_complex_paths_path, dtype=str)
         npz_file = np.load(lig_meta_data_path, allow_pickle=True)
         lig_sizes, num_contacts = npz_file['arr_0'], npz_file['arr_1']
@@ -97,12 +101,20 @@ class ComplexDataset(Dataset):
             filtered_paths, filtered_sizes, filtered_contacts = valid_complex_paths, lig_sizes, num_contacts
         if args.lm_embeddings:
             self.get_lm_embeddings(filtered_paths)
+        if self.args.diffdockpocket_ligpos:
+            assert data_source == 'pdbbind', 'diffdockpocket_ligpos only works with pdbbind data'
+            filtered_names = [os.path.basename(path)[:-3] for path in filtered_paths]
         valid_ids = []
         for idx in range(len(filtered_paths)):
             if np.any((filtered_contacts[idx] >= args.min_num_contacts) & (filtered_sizes[idx] <= args.max_lig_size) & (filtered_sizes[idx] >= args.min_lig_size)):
+                if self.args.diffdockpocket_ligpos:
+                    if filtered_names[idx] not in list(self.diffdock_ligpos.keys()):
+                        continue
                 valid_ids.append(idx)
         filtered_paths, filtered_sizes, filtered_contacts = filtered_paths[valid_ids], filtered_sizes[valid_ids], filtered_contacts[valid_ids]
+
         lg(f'Finished filtering combined data for ligands of min size {args.min_lig_size} and max size {args.max_lig_size} and min_num_contacts {args.min_num_contacts} to end up with this many: {len(filtered_paths)}')
+        if self.args.diffdockpocket_ligpos: lg(f'Filtering also filtered out all complexes that were not in diffdockpocket_ligpos. This leaves us with {len(filtered_paths)} complexes.')
         self.data_paths = [path for path, size in zip(filtered_paths, filtered_sizes) if any(size <= args.max_lig_size)]
         lg(f'Finished filtering combined data for ligands of max size {args.max_lig_size} to end up with this many: {len(self.data_paths)}')
         if multiplicity > 1:
@@ -229,6 +241,14 @@ class ComplexDataset(Dataset):
             data['protein'].pos_O += torch.randn_like(data['protein'].pos_O) * self.args.backbone_noise
             data['protein'].pos_C += torch.randn_like(data['protein'].pos_C) * self.args.backbone_noise
             data['protein'].pos_Cb += torch.randn_like(data['protein'].pos_Cb) * self.args.backbone_noise
+        if self.args.diffdockpocket_ligpos:
+            dd_pos = copy.deepcopy(self.diffdock_ligpos[data.pdb_id][0])
+            if self.args.filter_dd_wrong_len and len(dd_pos) != len(data['ligand'].pos):
+                lg(f'WARNING: dd ligand has wrong length for {data.pdb_id}. Sampling a new complex. len(data[ligand].pos) {len(data["ligand"].pos)} != len(dd_pos) {len(dd_pos)} ')
+                return self.get(torch.randint(low=0, high=self.len(), size=(1,)).item())
+            else:
+                assert len(data['ligand'].pos) == len(dd_pos), f'len(data[ligand].pos) {len(data["ligand"].pos)} != len(dd_pos) {len(dd_pos)} for the pdb_id {data.pdb_id}'
+            data['ligand'].pos = torch.from_numpy(dd_pos) - data.original_center - data.pocket_center
 
         data.protein_size = data['protein'].pos.shape[0]
         data['protein'].inter_res_dist = None
@@ -237,7 +257,7 @@ class ComplexDataset(Dataset):
             print('WARNING: only this many residues in the pocket ', len(data['protein'].pos))
         if torch.isnan(data['protein'].pos).any():
             print('protein pos', data['protein'].pos)
-            raise Exception('Nan encounered in porotein positions of ', data.pdb_id)
+            raise Exception('Nan encounered in protein positions of ', data.pdb_id)
         return data
     def get_pocket(self, data, pocket_type = None):
         if pocket_type is None:
@@ -422,7 +442,13 @@ class ComplexDataset(Dataset):
                         connected_atoms = ligs_sel.select('resnum ' + ' '.join(connected_resnums.astype(str))).select('resname ' + ' '.join(connected_resnames)).select('chain ' + ' '.join(connected_chain_ids))
                     if self.args.double_correct_moad_lig_selection:
                         connected_atoms = ligs_sel.select('index ' + ' '.join(connected_atomidx.astype(str))).select('resnum ' + ' '.join(connected_resnums.astype(str))).select('resname ' + ' '.join(connected_resnames)).select('chain ' + ' '.join(connected_chain_ids))
-                    lig_name = pdb_id +f'_lig{self.args.lig_connection_radius}'+ ''.join([f'-{res_name}_resID{res_id}_chID{chain_id}' for res_name, res_id, chain_id in zip(connected_resnames, connected_resnums, connected_chain_ids)]) + '.pdb'
+                    if self.args.correct_moad_lig_selection:
+                        moad_dataparsing_type = 'halfcorrect'
+                    elif self.args.double_correct_moad_lig_selection:
+                        moad_dataparsing_type = 'correct'
+                    else:
+                        moad_dataparsing_type = 'incorrect'
+                    lig_name = pdb_id +f'_lig{self.args.lig_connection_radius}_{moad_dataparsing_type}Parse'+ ''.join([f'-{res_name}_resID{res_id}_chID{chain_id}' for res_name, res_id, chain_id in zip(connected_resnames, connected_resnums, connected_chain_ids)]) + '.pdb'
                     prody.writePDB(os.path.join(self.data_dir, pdb_id, lig_name), connected_atoms)
                     lig_names.append(lig_name)
                     lig_num_components.append(len(connected_idx))

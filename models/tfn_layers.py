@@ -104,7 +104,7 @@ class RefinementTFNLayer(torch.nn.Module):
             self.lig_norm = LayerNorm(args.ns)
             self.rec_norm = LayerNorm(args.ns)
 
-    def forward(self, data, rec_cg, lig_pos, lig_na, lig_ea, rec_na, temb=None, x_self=None):
+    def forward(self, data, rec_cg, lig_pos, lig_na, lig_ea, rec_na, temb=None, x_self=None, x_prior=None):
         start = time.time()
         if self.args.lig_coord_noise > 0: lig_pos = lig_pos + torch.randn_like(lig_pos) * self.args.lig_coord_noise
         lig_cg = self.build_cg(
@@ -114,7 +114,8 @@ class RefinementTFNLayer(torch.nn.Module):
             radius_emb_func=self.lig_radius_embedding,
             batch=data["ligand"].batch,
             radius=self.args.lig_radius,
-            pos_self=x_self
+            pos_self=x_self,
+            pos_prior=x_prior
         )
 
         cross_cg = self.build_cg(
@@ -126,6 +127,7 @@ class RefinementTFNLayer(torch.nn.Module):
             radius=self.args.cross_radius,
             time_embedding=None,
             pos_self=(data["protein"].pos, x_self),
+            pos_prior=(data["protein"].pos, x_prior)
         )
         data.logs['radius_graph_time'] += time.time() - start
         lig_na_start, rec_na_start = lig_na, rec_na
@@ -261,6 +263,7 @@ def build_cg(
     radius=None,
     time_embedding=None,
     pos_self=None,
+    pos_prior=None
 ):
     if isinstance(pos, tuple):
         pos1, pos2 = pos
@@ -296,13 +299,21 @@ def build_cg(
         edge_attr = radius_emb_func(edge_vec.norm(dim=-1))
 
 
-    if isinstance(pos, tuple):
+    if isinstance(pos_self, tuple):
         pos1_self, pos2_self = pos_self
     else:
         pos1_self = pos2_self = pos_self
     if pos1_self is not None and pos2_self is not None:
         edge_vec_self = pos1_self[dst.long()] - pos2_self[src.long()]
         edge_attr = edge_attr + radius_emb_func(edge_vec_self.norm(dim=-1))
+
+    if isinstance(pos_prior, tuple):
+        pos1_prior, pos2_prior = pos_prior
+    else:
+        pos1_prior = pos2_prior = pos_prior
+    if pos1_prior is not None and pos2_prior is not None:
+        edge_vec_prior = pos1_prior[dst.long()] - pos2_prior[src.long()]
+        edge_attr = edge_attr + radius_emb_func(edge_vec_prior.norm(dim=-1))
 
     if time_embedding is not None:
         edge_attr = edge_attr + time_embedding[src.long()]

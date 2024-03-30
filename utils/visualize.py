@@ -64,8 +64,9 @@ class PDBFile:
         with open(path, "w") as f:
             f.write(str_)
 
-def save_trajectory_pdb(args, batch, trajectory, model_pred, extra_string = '', production_mode= False, out_dir=None):
+def save_trajectory_pdb(args, batch, xts_list, x1s_list, logits_list, extra_string = '', production_mode= False, out_dir=None):
     bid = batch["ligand"].batch
+    prot_bid = batch["protein"].batch
     if out_dir is None:
         out_dir = f"{os.environ['MODEL_DIR']}/inference_output"
     pdb_files_xt = []
@@ -80,16 +81,28 @@ def save_trajectory_pdb(args, batch, trajectory, model_pred, extra_string = '', 
         pdb_files_xt.append(PDBFile(rdkit_mol))
         pdb_files_x1.append(PDBFile(rdkit_mol))
 
-    for idx, (xt, model_pred) in enumerate(zip(trajectory, model_pred)):
-        for i, (f_xt, f_preds) in enumerate(zip(pdb_files_xt, pdb_files_x1)):
+    for idx, (xt, x1) in enumerate(zip(xts_list, x1s_list)):
+        for i, (f_xt, f_x1) in enumerate(zip(pdb_files_xt, pdb_files_x1)):
                 center_offset = (batch.original_center[i].detach().cpu() + batch.pocket_center[i].detach().cpu())
                 f_xt.add((xt[torch.where(bid == i)[0]]).detach().cpu() + center_offset, order=idx + 1, part=0)
-                f_preds.add((model_pred[torch.where(bid == i)[0]]).detach().cpu() + center_offset, order=idx + 1, part=0)
+                f_x1.add((x1[torch.where(bid == i)[0]]).detach().cpu() + center_offset, order=idx + 1, part=0)
 
+    logit_trajs = torch.stack(logits_list, dim=0)
+    xt_trajs = torch.stack(xts_list, dim=0)
+    x1_trajs = torch.stack(x1s_list, dim=0)
     for i, (f_xt, f_preds) in enumerate(zip(pdb_files_xt, pdb_files_x1)):
-            os.makedirs(f"{out_dir}/{batch.pdb_id[i]}", exist_ok=True)
-            f_xt.write(path=f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_xt.pdb")
-            f_preds.write(path=f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_x1.pdb")
+        os.makedirs(f"{out_dir}/{batch.pdb_id[i]}", exist_ok=True)
+        f_xt.write(path=f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_xt.pdb")
+        f_preds.write(path=f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_x1.pdb")
+
+        center_offset = (batch.original_center[i].detach().cpu() + batch.pocket_center[i].detach().cpu())
+        xt_traj = (xt_trajs[:,torch.where(bid == i)[0],:]).detach().cpu() + center_offset
+        x1_traj = (x1_trajs[:,torch.where(bid == i)[0],:]).detach().cpu() + center_offset
+        logit_traj = (logit_trajs[:,torch.where(prot_bid == i)[0],:]).detach().cpu()
+        np.save(f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_xt.npy", xt_traj)
+        np.save(f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_x1.npy", x1_traj)
+        np.save(f"{out_dir}/{batch.pdb_id[i]}/{batch.pdb_id[i]}_{extra_string}_logits.npy", logit_traj)
+
 
 def plot_point_cloud(point_clouds):
     # Takes a list of point cloud tensors and plots them

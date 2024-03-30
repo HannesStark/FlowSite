@@ -116,6 +116,7 @@ class FlowSiteModule(GeneralModule):
         #with open('batch.txt', 'w') as f:
         #    f.write(str(sorted(batch.__dict__.items(), key=lambda x: x[0])))
         batch['ligand'].shadow_pos = batch['ligand'].pos.clone()
+        batch['ligand'].shadow_pos2 = copy.deepcopy(batch['ligand'].pos.clone())
 
         if self.args.flow_matching:
             x0 = sample_prior(batch, self.args.prior_scale, harmonic=not self.args.gaussian_prior)
@@ -152,7 +153,7 @@ class FlowSiteModule(GeneralModule):
                     if self.args.standard_style_self_condition_inv:
                         original_input_feat = batch['protein'].input_feat.clone()
                         batch['protein'].original_feat = original_input_feat.clone()
-                    res_pred, pos_list, angles = self.model(copy.deepcopy(batch), x_self=sample_prior(batch, self.args.prior_scale , harmonic=not self.args.gaussian_prior) if self.args.self_condition_x else None)
+                    res_pred, pos_list, angles = self.model(copy.deepcopy(batch), x_self=sample_prior(batch, self.args.prior_scale , harmonic=not self.args.gaussian_prior) if self.args.self_condition_x else None, x_prior=x0 if self.args.prior_condition else None)
                 if self.args.self_condition_inv:
                     del batch['protein'].input_feat
                     batch['protein'].input_feat = res_pred if self.args.self_condition_inv_logits else torch.argmax(res_pred, dim=1)[:, None]
@@ -161,13 +162,13 @@ class FlowSiteModule(GeneralModule):
                     if self.args.standard_style_self_condition_inv:
                         del batch['protein'].original_feat
                         batch['protein'].original_feat = original_input_feat.clone()
-                res_pred, pos_list, angles = self.model(batch, x_self =copy.deepcopy(pos_list[-1].detach()) if self.args.self_condition_x else None)
+                res_pred, pos_list, angles = self.model(batch, x_self =copy.deepcopy(pos_list[-1].detach()) if self.args.self_condition_x else None, x_prior=x0 if self.args.prior_condition else None)
             else:
                 if self.args.standard_style_self_condition_inv:
                     batch['protein'].original_feat = batch['protein'].input_feat.clone()
                 if self.args.self_condition_bit:
                     batch.self_condition_bit = torch.zeros((len(batch.pdb_id),1), dtype=torch.float32, device=self.device)
-                res_pred, pos_list, angles = self.model(copy.deepcopy(batch), x_self=sample_prior(batch, self.args.prior_scale , harmonic=not self.args.gaussian_prior) if self.args.self_condition_x else None)
+                res_pred, pos_list, angles = self.model(copy.deepcopy(batch), x_self=sample_prior(batch, self.args.prior_scale , harmonic=not self.args.gaussian_prior) if self.args.self_condition_x else None, x_prior=x0 if self.args.prior_condition else None)
 
         except Exception as e:
             lg("Error forward pass")
@@ -250,15 +251,15 @@ class FlowSiteModule(GeneralModule):
                     x1_out = pos_list[-1]
                 else:
                     if self.args.flow_matching:
-                        x1_out, x1, res_pred = self.flow_match_inference(batch, batch_idx)
+                        x1_out, x1, res_pred, logit_traj = self.flow_match_inference(batch, batch_idx)
                     else:
-                        x1_out, x1, res_pred = self.harmonic_inference(batch, batch_idx)
+                        x1_out, x1, res_pred, logit_traj = self.harmonic_inference(batch, batch_idx)
 
                 angle_loss = supervised_chi_loss(batch, angles, angles_idx_s=11 - self.args.num_angle_pred) if self.args.num_angle_pred > 0 else torch.tensor(0.0)
                 recovered_aa_angle_loss = get_recovered_aa_angle_loss(copy.deepcopy(batch), angles, res_pred, angles_idx_s=11-self.args.num_angle_pred) if self.args.num_angle_pred > 0 else torch.tensor(0.0)
 
-                rmsd, centroid_rmsd, kabsch_rmsd = compute_rmsds(batch["ligand"].shadow_pos, x1, batch )
-                rmsd_out, centroid_rmsd_out, kabsch_rmsd_out = compute_rmsds(batch["ligand"].shadow_pos, x1_out, batch)
+                rmsd, centroid_rmsd, kabsch_rmsd = compute_rmsds(batch['ligand'].shadow_pos2, x1, batch )
+                rmsd_out, centroid_rmsd_out, kabsch_rmsd_out = compute_rmsds(batch['ligand'].shadow_pos2, x1_out, batch)
 
                 self.log_3D_metrics(rmsd, centroid_rmsd, kabsch_rmsd, suffix="")
                 self.log_3D_metrics(rmsd_out, centroid_rmsd_out, kabsch_rmsd_out, suffix="_out")
@@ -321,14 +322,17 @@ class FlowSiteModule(GeneralModule):
 
         sol = [x0]
         model_pred = [x0]
+        logit_traj = [torch.nn.functional.one_hot(batch['protein'].feat.squeeze() * 0, len(atom_features_list['residues_canonical']))]
         xt = x0
         steps = 1
         while steps <= len(t_span) - 1:
             batch["ligand"].pos = xt
             batch.t01 = t.expand(len(batch.pdb_id)).to(self.device)
-            res_pred, pos_list, angles = self.model(batch, x_self=x_self)
+            res_pred, pos_list, angles = self.model(batch, x_self=x_self, x_prior=x0 if self.args.prior_condition else None)
             x1_pred = pos_list[-1]
             vt = x1_pred - x0 if not self.args.velocity_prediction else x1_pred
+            if self.args.corr_integration:
+                vt = (x1_pred - xt)/(1-t) if not self.args.velocity_prediction else x1_pred
             xt = xt + dt * vt
             t = t + dt
 
@@ -344,13 +348,14 @@ class FlowSiteModule(GeneralModule):
 
             sol.append(xt)
             model_pred.append(x1_pred)
+            logit_traj.append(res_pred)
             if steps < len(t_span) - 1: dt = t_span[steps + 1] - t
             steps += 1
 
         if self.args.save_inference and (batch_idx == 0 or self.args.save_all_batches) and self.inference_counter % self.args.inference_save_freq == 0 or self.stage == "pred" and self.args.save_inference and self.args.save_all_batches:
             self.inference_counter = 0
-            save_trajectory_pdb(self.args, batch, sol, model_pred, extra_string=f'{self.stage}_{self.trainer.global_step}globalStep', production_mode=production_mode, out_dir=os.path.join(self.args.out_dir, 'structures') if production_mode else None)
-        return x1_pred, xt, res_pred
+            save_trajectory_pdb(self.args, batch, sol, model_pred, logit_traj, extra_string=f'{self.stage}_{self.trainer.global_step}globalStep', production_mode=production_mode, out_dir=os.path.join(self.args.out_dir, 'structures') if production_mode else None)
+        return x1_pred, xt, res_pred, logit_traj
 
     @torch.no_grad()
     def harmonic_inference(self, batch, batch_idx=None):
@@ -369,6 +374,7 @@ class FlowSiteModule(GeneralModule):
         lamb = batch.D
         sol = [xt]
         model_pred = [xt]
+        logit_traj = [torch.nn.functional.one_hot(batch['protein'].feat.squeeze() * 0, len(atom_features_list['residues_canonical']))]
         very_first_x0 = None
         for idx, (t, s, t01) in enumerate(zip(ts[:-1], ts[1:], times01[1:])):
             batch["ligand"].pos = xt
@@ -402,11 +408,12 @@ class FlowSiteModule(GeneralModule):
 
             sol.append(xt)
             model_pred.append(x0)
+            logit_traj.append(res_pred)
 
         if self.args.save_inference and (batch_idx == 0 or self.args.save_all_batches) and self.inference_counter % self.args.inference_save_freq == 0 or self.stage == "pred" and self.args.save_inference and self.args.save_all_batches:
             self.inference_counter = 0
-            save_trajectory_pdb(self.args, batch, sol, model_pred, extra_string=f'{self.stage}_{self.trainer.global_step}globalStep')
-        return x0, xt, res_pred
+            save_trajectory_pdb(self.args, batch, sol, model_pred, logit_traj, extra_string=f'{self.stage}_{self.trainer.global_step}globalStep')
+        return x0, xt, res_pred, logit_traj
 
 
     def get_discrete_metrics(self, batch, res_pred):
@@ -499,9 +506,9 @@ class FlowSiteModule(GeneralModule):
         for i in range(self.args.num_inference):
             batch_ = copy.deepcopy(batch)
             if self.args.flow_matching:
-                x1_out, x1, res_pred = self.flow_match_inference(batch_, batch_idx, production_mode=True)
+                x1_out, x1, res_pred, logit_traj = self.flow_match_inference(batch_, batch_idx, production_mode=True)
             else:
-                x1_out, x1, res_pred = self.harmonic_inference(batch_, batch_idx)
+                x1_out, x1, res_pred, logit_traj = self.harmonic_inference(batch_, batch_idx)
             full_designed_mask = torch.logical_and(batch['full_protein'].designable_mask, batch['full_protein'].pocket_mask)
             assert full_designed_mask.sum() == batch['protein'].designable_mask.sum()
 

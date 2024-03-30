@@ -79,11 +79,13 @@ def parse_train_args(args=sys.argv[1:]):
     parser.add_argument('--gaussian_prior', action='store_true', default=False, help='')
     parser.add_argument('--self_condition_inv', action='store_true', default=False, help='')
     parser.add_argument('--self_condition_x', action='store_true', default=False, help='Whether or not to use structure self conditioning')
+    parser.add_argument('--prior_condition', action='store_true', default=False, help='Whether or not to condition on the prior. Does not work with self conditioning.')
     parser.add_argument('--self_condition_inv_logits', action='store_true', default=False, help='')
     parser.add_argument('--self_condition_bit', action='store_true', default=False, help='')
     parser.add_argument('--no_tfn_self_condition_inv', action='store_true', default=False, help='')
     parser.add_argument('--standard_style_self_condition_inv', action='store_true', default=False, help='')
     parser.add_argument('--self_fancy_init', action='store_true', default=False, help='')
+    parser.add_argument('--corr_integration', action='store_true', default=False, help='')
     parser.add_argument("--self_condition_ratio", type=float, default=0.5, help='for what fraction of the forward passes to train with self conditioning')
     parser.add_argument('--num_integration_steps', type=int, default=20, help='The number of integration steps used during inference.')
     parser.add_argument('--time_conditioning', action='store_true', default=False, help='Wheter or not to condition the vectorfield / score model on time')
@@ -136,6 +138,9 @@ def parse_train_args(args=sys.argv[1:]):
     parser.add_argument('--await_preprocessing', action='store_true', default=False, help='wait until the preprocessing is done by another process')
     parser.add_argument('--use_largest_lig', action='store_true', default=False, help='Option For binding moad to always use the largest ligand out of all of the ligands in the complex')
     parser.add_argument('--lm_embeddings', action='store_true', default=False, help='')
+    parser.add_argument('--diffdockpocket_ligpos', action='store_true', default=False, help='')
+    parser.add_argument('--filter_dd_wrong_len', action='store_true', default=False, help='')
+
 
     # Pocket parameters
     parser.add_argument('--design_residue_cutoff', type=float, default=4, help='for the residues that should be predicted/generated')

@@ -108,9 +108,9 @@ class FlowSiteModel(nn.Module):
                 self.rec_tfn2inv = nn.Sequential(Linear(args.ns, args.ns), nn.ReLU(), Linear(args.ns, fold_dim))
         assert not ((args.time_condition_inv or args.time_condition_tfn) and args.ignore_lig), "It does not make sense to use time conditioning without the ligand and therefore without diffusion."
 
-    def forward(self, data, x_self=None):
+    def forward(self, data, x_self=None, x_prior= None):
         if self.args.use_tfn:
-            lig_na_tfn, rec_na_tfn, lig_pos_stack = self.tfn(data, x_self)
+            lig_na_tfn, rec_na_tfn, lig_pos_stack = self.tfn(data, x_self, x_prior)
             if self.args.tfn_detach:
                 lig_na_tfn, rec_na_tfn = lig_na_tfn.detach(), rec_na_tfn.detach()
             data['ligand'].pos = lig_pos_stack[-1].detach()
@@ -235,7 +235,7 @@ class TensorFieldNet(nn.Module):
 
         self.tfn_layers = nn.ModuleList([RefinementTFNLayer(args, last_layer=i == (args.num_tfn_layers - 1)) for i in range(args.num_tfn_layers)])
 
-    def forward(self,data, x_self=None):
+    def forward(self, data, x_self=None, x_prior=None):
         lig_pos = data["ligand"].pos
         rec_cg = self.build_cg(
             pos=data["protein"].pos,
@@ -273,7 +273,7 @@ class TensorFieldNet(nn.Module):
         data.logs['radius_graph_time'] = 0
         lig_pos_list = []
         for tfn_layer in self.tfn_layers:
-            lig_pos, lig_na, rec_na = tfn_layer(data, rec_cg, lig_pos.detach(), lig_na, lig_ea, rec_na, temb, x_self)
+            lig_pos, lig_na, rec_na = tfn_layer(data, rec_cg, lig_pos.detach(), lig_na, lig_ea, rec_na, temb, x_self, x_prior)
             lig_pos_list.append(lig_pos)
         return lig_na, rec_na, torch.stack(lig_pos_list)
 
