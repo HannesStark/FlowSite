@@ -330,9 +330,15 @@ class FlowSiteModule(GeneralModule):
             batch.t01 = t.expand(len(batch.pdb_id)).to(self.device)
             res_pred, pos_list, angles = self.model(batch, x_self=x_self, x_prior=x0 if self.args.prior_condition else None)
             x1_pred = pos_list[-1]
+
+            ####################################
+            # FRIENDS OF THE SUN!!!!!!
+            # If you are copy pasting this code, then use what is under the if self.args.corr_integration: condition. 
             vt = x1_pred - x0 if not self.args.velocity_prediction else x1_pred
             if self.args.corr_integration:
                 vt = (x1_pred - xt)/(1-t) if not self.args.velocity_prediction else x1_pred
+            ####################################
+            
             xt = xt + dt * vt
             t = t + dt
 
